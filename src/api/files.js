@@ -19,7 +19,7 @@ export async function uploadFile(file, onProgress) {
     } : undefined
   };
   
-  const r = await api.post('/files/upload', formData, config);
+  const r = await api.post('/files', formData, config);
   return r.data;
 }
 
@@ -38,7 +38,7 @@ export async function uploadFiles(files, onProgress) {
     } : undefined
   };
   
-  const r = await api.post('/files/upload/batch', formData, config);
+  const r = await api.post('/files/batch', formData, config);
   return r.data;
 }
 

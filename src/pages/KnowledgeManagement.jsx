@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Button } from 'antd';
+import { UploadOutlined } from '@ant-design/icons';
 import { 
   uploadDocument, 
   deleteDocument, 
@@ -7,7 +9,7 @@ import {
   getDocumentStructure,
   getDocuments
 } from '../api/knowledge';
-import DocumentUpload from '../components/DocumentUpload';
+import DocumentUploadModal from '../components/DocumentUploadModal';
 
 // 文档结构树组件
 const DocumentStructureTree = ({ structure, level = 0 }) => {
@@ -74,12 +76,7 @@ export default function KnowledgeManagement() {
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState(null);
   const [activeTab, setActiveTab] = useState('documents');
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadForm, setUploadForm] = useState({
-    docType: '',
-    vendor: '',
-    tags: ''
-  });
+  const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [filters, setFilters] = useState({
     status: '',
     vendor: '',
@@ -224,6 +221,10 @@ export default function KnowledgeManagement() {
       setLoading(false);
     }
   }
+
+  const handleUploadSuccess = async () => {
+    await loadDocuments();
+  };
 
   function handleDeleteDocument(docId) {
     console.log('删除按钮被点击，文档ID:', docId);
@@ -419,7 +420,7 @@ export default function KnowledgeManagement() {
                 >
                   {loading ? (
                     <>
-                      <svg className="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -512,16 +513,23 @@ export default function KnowledgeManagement() {
       {/* 文档管理标签页 */}
       {activeTab === 'documents' && (
         <div className="space-y-6">
-          {/* 增强文档上传区域 */}
-          <DocumentUpload
-            onUploadComplete={(result) => {
-              console.log('文档上传完成:', result);
-              // 刷新文档列表
-              loadDocuments();
-            }}
-            onError={(error) => {
-              console.error('文档上传失败:', error);
-            }}
+          {/* 上传按钮 */}
+          <div className="mb-6">
+            <Button 
+              type="primary" 
+              icon={<UploadOutlined />}
+              onClick={() => setUploadModalVisible(true)}
+              size="large"
+            >
+              上传文档
+            </Button>
+          </div>
+
+          {/* 文档上传弹窗 */}
+          <DocumentUploadModal
+            open={uploadModalVisible}
+            onClose={() => setUploadModalVisible(false)}
+            onSuccess={handleUploadSuccess}
           />
 
           {/* 过滤器 */}

@@ -2,7 +2,7 @@ import { api } from './client.js';
 
 // 获取案例列表
 export async function getCases(params = {}) {
-  const r = await api.get('/cases/', { params });
+  const r = await api.get('/cases', { params });
   return r.data;
 }
 
@@ -14,7 +14,7 @@ export async function getCaseById(id) {
 
 // 创建案例
 export async function createCase(data) {
-  const r = await api.post('/cases/', data);
+  const r = await api.post('/cases', data);
   return r.data;
 }
 
@@ -80,7 +80,7 @@ export async function deleteEdge(caseId, edgeId) {
 
 // 提交反馈
 export async function submitFeedback(caseId, data) {
-  const r = await api.post(`/cases/${caseId}/feedback`, data);
+  const r = await api.put(`/cases/${caseId}/feedback`, data);
   return r.data;
 }
 

@@ -47,7 +47,7 @@ export async function uploadDocument(formData, onProgress = null) {
     },
     timeout: 300000, // 5分钟超时
     onUploadProgress: (progressEvent) => {
-      if (onProgress && progressEvent.total) {
+      if (onProgress && typeof onProgress === 'function' && progressEvent.total) {
         const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
         onProgress(percentCompleted);
       }
@@ -77,6 +77,12 @@ export async function reparseDocument(docId) {
 // 获取文档处理状态
 export async function getDocumentProcessingStatus(docId) {
   const r = await api.get(`/knowledge/documents/${docId}/status`);
+  return r.data;
+}
+
+// 获取解析任务状态
+export async function getParsingJobStatus(jobId) {
+  const r = await api.get(`/knowledge/idp/jobs/${jobId}/status`);
   return r.data;
 }
 
