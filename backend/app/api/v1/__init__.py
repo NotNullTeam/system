@@ -19,6 +19,7 @@ from app.api.v1.files import files_bp
 from app.api.v1.user import user_bp
 from app.api.v1.notifications import notifications_bp
 from app.api.v1.analysis import analysis_bp
+from app.api.v1.dashboard import dashboard_bp
 
 # 注册子蓝图
 v1_bp.register_blueprint(auth_bp)
@@ -30,3 +31,4 @@ v1_bp.register_blueprint(files_bp, url_prefix='/files')
 v1_bp.register_blueprint(user_bp, url_prefix='/user')
 v1_bp.register_blueprint(notifications_bp, url_prefix='/notifications')
 v1_bp.register_blueprint(analysis_bp, url_prefix='/analysis')
+v1_bp.register_blueprint(dashboard_bp, url_prefix='/dashboard')

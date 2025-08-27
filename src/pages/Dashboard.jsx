@@ -66,10 +66,10 @@ export default function Dashboard() {
       ]);
       
       setStats(statsData?.data || {});
-      setFaultCategories(faultData?.data || []);
-      setTrends(trendsData?.data || []);
+      setFaultCategories(faultData?.data?.categories || []);
+      setTrends(trendsData?.data?.trends || []);
       setCoverage(coverageData?.data || {});
-      setTimeline(timelineData?.data || []);
+      setTimeline(timelineData?.data?.timeline || []);
     } catch (e) {
       setError(e?.response?.data?.error?.message || e?.message || '加载失败');
     } finally {

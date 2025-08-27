@@ -16,7 +16,9 @@ class Case(db.Model):
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title = db.Column(db.String(200), nullable=False)
-    status = db.Column(db.Enum('open', 'solved', 'closed', name='case_status'), default='open')
+    description = db.Column(db.Text)
+    category = db.Column(db.String(100))
+    status = db.Column(db.Enum('open', 'in_progress', 'resolved', 'closed', name='case_status'), default='open')
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -31,6 +33,8 @@ class Case(db.Model):
         return {
             'caseId': self.id,
             'title': self.title,
+            'description': self.description,
+            'category': self.category,
             'status': self.status,
             'createdAt': self.created_at.isoformat() + 'Z' if self.created_at else None,
             'updatedAt': self.updated_at.isoformat() + 'Z' if self.updated_at else None
