@@ -154,7 +154,8 @@ class VectorService:
             raise
 
     def search_similar(self, query_text: str, top_k: int = 5,
-                      document_id: Optional[str] = None) -> List[Dict[str, Any]]:
+                      document_id: Optional[str] = None, 
+                      filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         搜索相似文档块
 
@@ -162,6 +163,7 @@ class VectorService:
             query_text: 查询文本
             top_k: 返回结果数量
             document_id: 可选，限制在特定文档内搜索
+            filters: 可选，过滤条件
 
         Returns:
             相似结果列表
@@ -174,7 +176,8 @@ class VectorService:
             results = self.vector_db.search_similar(
                 query_vector=query_vector,
                 top_k=top_k,
-                document_id=document_id
+                document_id=document_id,
+                filters=filters
             )
 
             logger.info(f"搜索到 {len(results)} 个相似结果")

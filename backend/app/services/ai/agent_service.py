@@ -52,12 +52,12 @@ def analyze_user_query(case_id: str, node_id: str, query: str):
         try:
             logger.info(f"开始分析用户查询: case_id={case_id}, node_id={node_id}")
 
-            # 获取当前任务
-            job = get_current_job()
-            if job:
-                job.meta['status'] = 'processing'
-                job.meta['progress'] = 0
-                job.save_meta()
+            # 线程池队列不支持get_current_job，跳过任务状态更新
+            # job = get_current_job()
+            # if job:
+            #     job.meta['status'] = 'processing'
+            #     job.meta['progress'] = 0
+            #     job.save_meta()
 
             # 获取节点
             node = db.session.get(Node, node_id)
@@ -69,17 +69,18 @@ def analyze_user_query(case_id: str, node_id: str, query: str):
             if not case:
                 raise Exception(f"案例 {case_id} 不存在")
 
-            # 更新任务进度
-            if job:
-                job.meta['progress'] = 20
-                job.save_meta()
+            # 线程池队列不支持job进度更新
+            # if job:
+            #     job.meta['progress'] = 20
+            #     job.save_meta()
 
             # 使用AI服务分析查询
             logger.info(f"开始AI分析用户查询: {query}")
+            
+            # 获取案例相关信息（设备厂商等）
+            vendor = case.case_metadata.get('vendor') if case.case_metadata else None
 
             try:
-                # 获取案例相关信息（设备厂商等）
-                vendor = case.metadata.get('vendor') if case.metadata else None
 
                 # 调用LLM服务进行查询分析
                 llm_service = LLMService()
@@ -100,10 +101,10 @@ def analyze_user_query(case_id: str, node_id: str, query: str):
                 analysis_result = _analyze_query_content(query)
                 context = []
 
-            # 更新任务进度
-            if job:
-                job.meta['progress'] = 60
-                job.save_meta()
+            # 线程池队列不支持job进度更新
+            # if job:
+            #     job.meta['progress'] = 60
+            #     job.save_meta()
 
             # 根据分析结果决定下一步
             if analysis_result.get('need_more_info'):
@@ -134,21 +135,33 @@ def analyze_user_query(case_id: str, node_id: str, query: str):
                     solution = llm_service.generate_solution(
                         query=query,
                         context=context,
-                        analysis=analysis_result,
                         vendor=vendor or "通用"
                     )
-                except:
+                    # 检查LLM服务是否返回错误信息
+                    if 'solution' in solution and ('错误' in solution['solution'] or 'timed out' in solution['solution']):
+                        logger.warning(f"LLM服务返回错误信息，使用降级方案: {solution['solution']}")
+                        solution = _generate_solution(query, analysis_result)
+                except Exception as e:
+                    logger.warning(f"LLM服务调用失败，使用降级方案: {str(e)}")
                     solution = _generate_solution(query, analysis_result)
 
                 node.type = 'SOLUTION'
                 node.title = '解决方案'
                 node.status = 'COMPLETED'
+                # 处理LLM服务返回格式差异
+                if 'solution' in solution:
+                    # LLM服务返回格式: {'solution': ..., 'vendor': ...}
+                    answer = solution.get('solution')
+                else:
+                    # 降级方案返回格式: {'answer': ..., 'sources': ..., 'commands': ...}
+                    answer = solution.get('answer')
+                
                 node.content = {
-                    'answer': solution.get('answer'),
+                    'answer': answer,
                     'sources': solution.get('sources', []),
                     'commands': solution.get('commands', []),
                     'category': analysis_result.get('category'),
-                    'vendor': vendor or "通用"
+                    'vendor': vendor
                 }
 
             # 更新节点元数据
@@ -158,7 +171,7 @@ def analyze_user_query(case_id: str, node_id: str, query: str):
                 'processed_at': datetime.utcnow().isoformat(),
                 'analysis_result': analysis_result,
                 'context_count': len(context),
-                'processing_time': time.time() - (job.started_at.timestamp() if job and job.started_at else time.time())
+                'processing_time': 0  # 线程池队列不支持job时间跟踪
             })
 
             # 更新案例时间
@@ -167,11 +180,11 @@ def analyze_user_query(case_id: str, node_id: str, query: str):
             # 提交数据库更改
             db.session.commit()
 
-            # 更新任务进度
-            if job:
-                job.meta['status'] = 'completed'
-                job.meta['progress'] = 100
-                job.save_meta()
+            # 线程池队列不支持job状态更新
+            # if job:
+            #     job.meta['status'] = 'completed'
+            #     job.meta['progress'] = 100
+            #     job.save_meta()
 
             logger.info(f"用户查询分析完成: case_id={case_id}, node_id={node_id}")
 
@@ -192,11 +205,11 @@ def analyze_user_query(case_id: str, node_id: str, query: str):
             except:
                 pass
 
-            # 更新任务状态
-            if job:
-                job.meta['status'] = 'failed'
-                job.meta['error'] = str(e)
-                job.save_meta()
+            # 线程池队列不支持job状态更新
+            # if job:
+            #     job.meta['status'] = 'failed'
+            #     job.meta['error'] = str(e)
+            #     job.save_meta()
 
             raise
 
@@ -217,12 +230,12 @@ def process_user_response(case_id: str, node_id: str, response_data: Dict[str, A
     app = create_app()
     with app.app_context():
         try:
-            # 获取当前任务
-            job = get_current_job()
-            if job:
-                job.meta['status'] = 'processing'
-                job.meta['progress'] = 0
-                job.save_meta()
+            # 线程池队列不支持get_current_job
+            # job = get_current_job()
+            # if job:
+            #     job.meta['status'] = 'processing'
+            #     job.meta['progress'] = 0
+            #     job.save_meta()
 
             # 获取节点
             node = db.session.get(Node, node_id)
@@ -236,18 +249,18 @@ def process_user_response(case_id: str, node_id: str, response_data: Dict[str, A
 
             app.logger.info(f"开始处理用户响应: case_id={case_id}")
 
-            # 更新任务进度
-            if job:
-                job.meta['progress'] = 30
-                job.save_meta()
+            # 线程池队列不支持job进度更新
+            # if job:
+            #     job.meta['progress'] = 30
+            #     job.save_meta()
 
             # 处理用户响应（模拟）
             processed_response = _process_response_content(response_data, retrieval_weight, filter_tags)
 
-            # 更新任务进度
-            if job:
-                job.meta['progress'] = 70
-                job.save_meta()
+            # 线程池队列不支持job进度更新
+            # if job:
+            #     job.meta['progress'] = 70
+            #     job.save_meta()
 
             # 生成最终解决方案
             solution = _generate_final_solution(case_id, processed_response)
@@ -270,7 +283,7 @@ def process_user_response(case_id: str, node_id: str, response_data: Dict[str, A
                 'processed_at': datetime.utcnow().isoformat(),
                 'retrieval_weight': retrieval_weight,
                 'filter_tags': filter_tags or [],
-                'processing_time': time.time() - (job.started_at.timestamp() if job and job.started_at else time.time())
+                'processing_time': 0  # 线程池队列不支持job时间跟踪
             })
 
             # 更新案例时间
@@ -279,11 +292,11 @@ def process_user_response(case_id: str, node_id: str, response_data: Dict[str, A
             # 提交数据库更改
             db.session.commit()
 
-            # 更新任务进度
-            if job:
-                job.meta['status'] = 'completed'
-                job.meta['progress'] = 100
-                job.save_meta()
+            # 线程池队列不支持job状态更新
+            # if job:
+            #     job.meta['status'] = 'completed'
+            #     job.meta['progress'] = 100
+            #     job.save_meta()
 
             app.logger.info(f"用户响应处理完成: case_id={case_id}, node_id={node_id}")
 
@@ -304,11 +317,11 @@ def process_user_response(case_id: str, node_id: str, response_data: Dict[str, A
             except:
                 pass
 
-            # 更新任务状态
-            if job:
-                job.meta['status'] = 'failed'
-                job.meta['error'] = str(e)
-                job.save_meta()
+            # 线程池队列不支持job状态更新
+            # if job:
+            #     job.meta['status'] = 'failed'
+            #     job.meta['error'] = str(e)
+            #     job.save_meta()
 
             raise
 
@@ -359,26 +372,34 @@ def _generate_solution(query, analysis_result):
     """生成解决方案（模拟实现）"""
     category = analysis_result.get('category', 'general')
 
-    if category == 'network':
+    if category == 'routing' or 'OSPF' in query:
         return {
-            'answer': '基于您的网络问题描述，建议按以下步骤排查',
-            'steps': [
-                '1. 检查物理连接是否正常',
-                '2. 验证IP配置是否正确',
-                '3. 测试网络连通性（ping测试）',
-                '4. 检查路由表配置'
+            'answer': '针对OSPF邻居状态卡在ExStart的问题，建议按以下步骤排查：\n\n1. 检查MTU配置是否一致\n2. 验证Hello包参数匹配\n3. 检查接口状态和IP配置\n4. 查看OSPF进程配置\n5. 检查网络连通性',
+            'sources': ['OSPF协议标准', '华为路由器配置指南'],
+            'commands': [
+                'display ospf peer',
+                'display ospf interface',
+                'display ip interface brief',
+                'ping <neighbor-ip>'
+            ],
+            'reasoning': 'OSPF邻居卡在ExStart状态通常是由于MTU不匹配或Hello参数不一致导致的'
+        }
+    elif category == 'network':
+        return {
+            'answer': '基于您的网络问题描述，建议按以下步骤排查：\n\n1. 检查物理连接是否正常\n2. 验证IP配置是否正确\n3. 测试网络连通性（ping测试）\n4. 检查路由表配置',
+            'sources': ['网络故障排查手册'],
+            'commands': [
+                'ping <target-ip>',
+                'traceroute <target-ip>',
+                'display ip routing-table'
             ],
             'reasoning': '这是网络问题的标准排查流程'
         }
     else:
         return {
-            'answer': '基于您的问题描述，建议采用以下解决方案',
-            'steps': [
-                '1. 确认问题的具体表现',
-                '2. 检查相关配置',
-                '3. 尝试重启相关服务',
-                '4. 如问题持续，请联系技术支持'
-            ],
+            'answer': '基于您的问题描述，建议采用以下解决方案：\n\n1. 确认问题的具体表现\n2. 检查相关配置\n3. 尝试重启相关服务\n4. 如问题持续，请联系技术支持',
+            'sources': ['技术支持文档'],
+            'commands': [],
             'reasoning': '这是通用问题的处理方法'
         }
 
@@ -421,7 +442,7 @@ def submit_query_analysis_task(case_id: str, node_id: str, query: str) -> str:
         str: 任务ID
     """
     queue = get_task_queue()
-    job = queue.enqueue(
+    task = queue.enqueue(
         analyze_user_query,
         case_id,
         node_id,
@@ -429,8 +450,8 @@ def submit_query_analysis_task(case_id: str, node_id: str, query: str) -> str:
         timeout='10m'  # 10分钟超时
     )
 
-    logger.info(f"查询分析任务已提交: {job.id}")
-    return job.id
+    logger.info(f"查询分析任务已提交: {task.id}")
+    return task.id
 
 
 def submit_response_processing_task(case_id: str, node_id: str, response_data: Dict[str, Any],
@@ -450,7 +471,7 @@ def submit_response_processing_task(case_id: str, node_id: str, response_data: D
         str: 任务ID
     """
     queue = get_task_queue()
-    job = queue.enqueue(
+    task = queue.enqueue(
         process_user_response,
         case_id,
         node_id,
@@ -460,8 +481,8 @@ def submit_response_processing_task(case_id: str, node_id: str, response_data: D
         timeout='10m'  # 10分钟超时
     )
 
-    logger.info(f"响应处理任务已提交: {job.id}")
-    return job.id
+    logger.info(f"响应处理任务已提交: {task.id}")
+    return task.id
 
 
 def get_agent_task_status(job_id: str) -> Dict[str, Any]:

@@ -32,17 +32,21 @@ export default function CaseDetailRefactored() {
 
   // 加载案例数据
   useEffect(() => {
-    if (id) {
+    if (id && id !== 'undefined') {
       loadCaseData();
       // 设置定时刷新，检查新节点
       const interval = setInterval(() => {
-        if (!processing) {
+        if (!processing && id !== 'undefined') {
           refreshNodes();
         }
       }, 5000);
       return () => clearInterval(interval);
+    } else if (id === 'undefined') {
+      // 如果ID无效，显示错误并返回案例列表
+      setError('案例ID无效');
+      setLoading(false);
     }
-  }, [id]);
+  }, [id, processing]);
 
   async function loadCaseData() {
     try {
@@ -53,16 +57,40 @@ export default function CaseDetailRefactored() {
         getCaseEdges(id)
       ]);
       
+      console.log('🚀 初始加载案例数据:', {
+        caseId: id,
+        caseRes,
+        nodesRes,
+        edgesRes
+      });
+      
       setCaseData(caseRes?.data || caseRes);
-      setNodes(nodesRes?.data || nodesRes || []);
-      setEdges(edgesRes?.data || edgesRes || []);
+      
+      // 处理节点数据，确保是数组
+      const nodesList = Array.isArray(nodesRes?.data) ? nodesRes.data : 
+                       Array.isArray(nodesRes) ? nodesRes : [];
+      const edgesList = Array.isArray(edgesRes?.data) ? edgesRes.data : 
+                       Array.isArray(edgesRes) ? edgesRes : [];
+      
+      console.log('📋 初始节点和边数据:', {
+        nodesList,
+        edgesList,
+        nodesCount: nodesList.length,
+        edgesCount: edgesList.length
+      });
+      
+      setNodes(nodesList);
+      setEdges(edgesList);
       
       // 自动选中最后一个节点
-      const lastNode = (nodesRes?.data || nodesRes || []).slice(-1)[0];
-      if (lastNode) {
-        handleNodeClick(lastNode.id);
+      if (nodesList.length > 0) {
+        const lastNode = nodesList[nodesList.length - 1];
+        if (lastNode && lastNode.id) {
+          handleNodeClick(lastNode.id);
+        }
       }
     } catch (e) {
+      console.error('❌ 加载案例数据失败:', e);
       setError(e?.response?.data?.error?.message || e?.message || '加载失败');
     } finally {
       setLoading(false);
@@ -70,13 +98,39 @@ export default function CaseDetailRefactored() {
   }
 
   async function refreshNodes() {
+    if (!id || id === 'undefined') {
+      console.warn('无效的案例ID，跳过刷新');
+      return;
+    }
+    
     try {
       const [nodesRes, edgesRes] = await Promise.all([
         getCaseNodes(id),
         getCaseEdges(id)
       ]);
-      setNodes(nodesRes?.data || nodesRes || []);
-      setEdges(edgesRes?.data || edgesRes || []);
+      
+      console.log('🔍 节点数据调试:', {
+        nodesRes,
+        edgesRes,
+        nodesRawData: nodesRes?.data,
+        edgesRawData: edgesRes?.data
+      });
+      
+      // 处理节点数据，确保是数组
+      const nodesList = Array.isArray(nodesRes?.data) ? nodesRes.data : 
+                       Array.isArray(nodesRes) ? nodesRes : [];
+      const edgesList = Array.isArray(edgesRes?.data) ? edgesRes.data : 
+                       Array.isArray(edgesRes) ? edgesRes : [];
+      
+      console.log('📊 处理后的数据:', {
+        nodesList,
+        edgesList,
+        nodesCount: nodesList.length,
+        edgesCount: edgesList.length
+      });
+      
+      setNodes(nodesList);
+      setEdges(edgesList);
     } catch (e) {
       console.error('刷新节点失败:', e);
     }

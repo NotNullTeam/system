@@ -12,6 +12,12 @@ from collections import Counter
 from dataclasses import dataclass
 import jieba
 from jieba import analyse
+import warnings
+
+# 初始化jieba并抑制ResourceWarning
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=ResourceWarning)
+    jieba.initialize()
 from app.services.retrieval.vector_service import get_vector_service
 from app.services.ai.embedding_service import get_embedding_service
 

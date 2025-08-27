@@ -6,6 +6,7 @@ export default function Cases() {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, caseId: null, caseName: '' });
 
   useEffect(() => {
     loadCases();
@@ -15,23 +16,74 @@ export default function Cases() {
     try {
       setLoading(true);
       const data = await getCases();
-      // 后端返回分页数据结构: {data: {items: [...], pagination: {...}}}
-      setCases(data?.data?.items || data?.items || []);
+      console.log('API返回数据:', data);  // 调试日志
+      console.log('数据结构:', JSON.stringify(data, null, 2));  // 详细结构
+      
+      // 处理多种可能的数据格式
+      let casesList = [];
+      if (Array.isArray(data)) {
+        casesList = data;
+      } else if (data?.data?.items && Array.isArray(data.data.items)) {
+        casesList = data.data.items;
+      } else if (data?.items && Array.isArray(data.items)) {
+        casesList = data.items;
+      } else if (data?.data && Array.isArray(data.data)) {
+        casesList = data.data;
+      }
+      
+      // 过滤掉没有有效 ID 的案例，并为缺少字段设置默认值
+      const validCases = casesList.filter(case_ => case_ && (case_.id || case_.caseId)).map(case_ => ({
+        ...case_,
+        id: case_.id || case_.caseId,
+        title: case_.title || case_.name || case_.query || '未命名',
+        description: case_.description || case_.query || '',
+        status: case_.status || 'unknown',
+        created_at: case_.created_at || case_.createdAt
+      }));
+      
+      console.log('处理后的案例数据:', validCases);
+      setCases(validCases);
     } catch (e) {
       setError(e?.response?.data?.error?.message || e?.message || '加载失败');
+      setCases([]);  // 确保错误时设置为空数组
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm('确定删除此案例？')) return;
+  function handleDeleteCase(caseId) {
+    console.log('删除按钮被点击，案例ID:', caseId);
+    
+    // 找到案例名称
+    const case_ = cases.find(c => (c.id || c.caseId) === caseId);
+    const caseName = case_?.title || '未命名案例';
+    
+    setDeleteConfirm({ show: true, caseId, caseName });
+  }
+
+  async function confirmDeleteCase() {
+    const { caseId } = deleteConfirm;
+    console.log('确认删除案例:', caseId);
+    
     try {
-      await deleteCase(id);
-      setCases(prev => prev.filter(c => c.id !== id));
+      setLoading(true);
+      setDeleteConfirm({ show: false, caseId: null, caseName: '' });
+      
+      const response = await deleteCase(caseId);
+      console.log('删除响应:', response);
+      setCases(prev => prev.filter(c => (c.id || c.caseId) !== caseId));
+      console.log('案例列表已更新');
     } catch (e) {
-      alert(e?.response?.data?.error?.message || e?.message || '删除失败');
+      console.error('删除失败:', e);
+      setError(e?.response?.data?.error?.message || '删除失败');
+    } finally {
+      setLoading(false);
     }
+  }
+
+  function cancelDeleteCase() {
+    console.log('取消删除');
+    setDeleteConfirm({ show: false, caseId: null, caseName: '' });
   }
 
   if (loading) return <div className="p-6 text-gray-600">加载中...</div>;
@@ -119,7 +171,7 @@ export default function Cases() {
                           <span>👁️</span> 查看
                         </Link>
                         <button
-                          onClick={() => handleDelete(case_.id)}
+                          onClick={() => handleDeleteCase(case_.id || case_.caseId)}
                           className="text-red-600 hover:text-red-800"
                         >
                           删除
@@ -133,6 +185,56 @@ export default function Cases() {
           </div>
         )}
       </div>
+
+      {/* 删除确认对话框 */}
+      {deleteConfirm.show && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="px-6 py-5 border-b border-[#E7E9F0] dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl">⚠️</span>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">确认删除</h3>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-gray-600 dark:text-gray-300 mb-4">
+                确定要删除案例 <span className="font-semibold text-gray-900 dark:text-white">"{deleteConfirm.caseName}"</span> 吗？
+              </p>
+              <p className="text-sm text-red-600 dark:text-red-400 mb-6">
+                此操作将永久删除案例及其所有相关数据，不可撤销。
+              </p>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={cancelDeleteCase}
+                  disabled={loading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmDeleteCase}
+                  disabled={loading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                >
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      删除中...
+                    </>
+                  ) : (
+                    '确认删除'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

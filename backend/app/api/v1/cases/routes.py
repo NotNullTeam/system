@@ -314,7 +314,7 @@ def create_case():
         case = Case(
             title=case_title,
             user_id=user_id,
-            metadata={
+            case_metadata={
                 'vendor': vendor,
                 'use_langgraph': use_langgraph,
                 'original_query': query,
@@ -368,7 +368,7 @@ def create_case():
         try:
             if use_langgraph:
                 # 使用langgraph Agent服务
-                from app.services.ai import submit_langgraph_query_analysis_task
+                from app.services.ai.langgraph_agent_service import submit_langgraph_query_analysis_task
                 job_id = submit_langgraph_query_analysis_task(case.id, ai_node.id, query)
                 current_app.logger.info(f"langgraph异步AI分析任务已提交: job_id={job_id}, case_id={case.id}")
             else:
@@ -377,8 +377,8 @@ def create_case():
                 from app.services import get_task_queue
 
                 queue = get_task_queue()
-                job = queue.enqueue(analyze_user_query, case.id, ai_node.id, query)
-                current_app.logger.info(f"传统异步AI分析任务已提交: job_id={job.id}, case_id={case.id}")
+                task = queue.enqueue(analyze_user_query, case.id, ai_node.id, query)
+                current_app.logger.info(f"传统异步AI分析任务已提交: task_id={task.id}, case_id={case.id}")
         except Exception as e:
             current_app.logger.error(f"提交异步任务失败: {str(e)}")
             # 不影响API响应，任务失败时节点状态会保持PROCESSING
@@ -706,11 +706,11 @@ def handle_interaction(case_id):
         # 触发异步处理
         try:
             # 检查案例是否使用langgraph
-            use_langgraph = case.metadata.get('use_langgraph', False) if case.metadata else False
+            use_langgraph = case.case_metadata.get('use_langgraph', False) if case.case_metadata else False
 
             if use_langgraph:
                 # 使用langgraph响应处理服务
-                from app.services.ai import submit_langgraph_response_processing_task
+                from app.services.ai.langgraph_agent_service import submit_langgraph_response_processing_task
                 job_id = submit_langgraph_response_processing_task(
                     case_id,
                     ai_processing_node.id,

@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createCase, submitInteraction } from '../api/cases.js';
+import { createCase } from '../api/cases.js';
 import { uploadFile } from '../api/files.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 export default function CaseCreate() {
   const navigate = useNavigate();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     problem_description: '',
@@ -14,6 +16,13 @@ export default function CaseCreate() {
     attachments: []
   });
   const [files, setFiles] = useState([]);
+
+  // 检查认证状态
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate('/login', { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   async function handleFileUpload(e) {
     const selectedFiles = Array.from(e.target.files);
@@ -26,7 +35,7 @@ export default function CaseCreate() {
     
     try {
       const results = await Promise.all(uploadPromises);
-      const fileIds = results.map(r => r?.data?.id || r?.id).filter(Boolean);
+      const fileIds = results.map(r => r?.data?.file_info?.id).filter(Boolean);
       setFormData(prev => ({ ...prev, attachments: fileIds }));
     } catch (error) {
       console.error('文件上传失败:', error);
@@ -44,34 +53,27 @@ export default function CaseCreate() {
 
     setLoading(true);
     try {
-      // 创建案例
+      // 创建案例（与后端契约对齐）
       const caseResponse = await createCase({
-        title: formData.problem_description.substring(0, 50),
-        description: formData.problem_description,
-        status: 'active',
-        metadata: {
-          network_topology: formData.network_topology,
-          device_vendor: formData.device_vendor,
-          urgency_level: formData.urgency_level
-        }
+        query: formData.problem_description,
+        attachments: formData.attachments,
+        vendor: formData.device_vendor || undefined,
+        useLanggraph: false
       });
 
-      const caseId = caseResponse?.data?.id || caseResponse?.id;
-      
+      const caseId = caseResponse?.data?.caseId;
       if (caseId) {
-        // 提交初始问题作为第一个交互
-        await submitInteraction(caseId, {
-          type: 'USER_QUERY',
-          content: formData.problem_description,
-          attachments: formData.attachments
-        });
-
         // 跳转到案例详情页
         navigate(`/cases/${caseId}`);
       }
     } catch (error) {
       console.error('创建案例失败:', error);
-      alert(error?.response?.data?.error?.message || '创建案例失败，请重试');
+      if (error?.response?.status === 401) {
+        alert('登录已过期，请重新登录');
+        navigate('/login');
+      } else {
+        alert(error?.response?.data?.error?.message || '创建案例失败，请重试');
+      }
     } finally {
       setLoading(false);
     }

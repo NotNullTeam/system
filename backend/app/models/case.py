@@ -20,6 +20,7 @@ class Case(db.Model):
     category = db.Column(db.String(100))
     status = db.Column(db.Enum('open', 'in_progress', 'resolved', 'closed', name='case_status'), default='open')
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    case_metadata = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

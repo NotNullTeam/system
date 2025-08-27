@@ -16,6 +16,13 @@ def setup_logging(app):
     Args:
         app: Flask应用实例
     """
+    # 清除现有的处理器，防止重复
+    app.logger.handlers.clear()
+    
+    # 设置根日志器，防止重复输出
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    
     if not app.debug and not app.testing:
         # 创建日志目录
         if not os.path.exists('logs'):
@@ -44,3 +51,11 @@ def setup_logging(app):
         console_handler.setLevel(logging.DEBUG)
         app.logger.addHandler(console_handler)
         app.logger.setLevel(logging.DEBUG)
+    
+    # 防止日志传播到父logger
+    app.logger.propagate = False
+    
+    # 配置其他模块的日志级别
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('requests').setLevel(logging.WARNING)

@@ -7,11 +7,12 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from app.services.ai.llm_service import LLMService
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage
+import httpx
 
 def test_model_connection():
     """测试模型连接"""
@@ -34,21 +35,24 @@ def test_model_connection():
     # 测试直接连接
     print("\n2. 测试直接模型连接:")
     try:
-        llm = ChatOpenAI(
-            model="qwen-plus",
-            openai_api_key=api_key,
-            openai_api_base=api_base,
-            temperature=0.1,
-            max_tokens=100,
-            timeout=30
-        )
+        # 与服务一致的 httpx 超时：read/write 与 timeout 对齐，connect 10s
+        with httpx.Client(timeout=httpx.Timeout(30, connect=10.0, read=30, write=30)) as http_client:
+            llm = ChatOpenAI(
+                model="qwen-plus",
+                api_key=api_key,
+                base_url=api_base or 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+                temperature=0.1,
+                max_tokens=100,
+                timeout=30,
+                http_client=http_client
+            )
 
-        # 发送简单的测试消息
-        response = llm.invoke([HumanMessage(content="你好，请简单介绍一下你自己。")])
-        print(f"   ✅ 模型响应成功")
-        print(f"   模型: qwen-plus")
-        print(f"   响应长度: {len(response.content)} 字符")
-        print(f"   响应预览: {response.content[:100]}...")
+            # 发送简单的测试消息
+            response = llm.invoke([HumanMessage(content="你好，请简单介绍一下你自己。")])
+            print(f"   ✅ 模型响应成功")
+            print(f"   模型: qwen-plus")
+            print(f"   响应长度: {len(response.content)} 字符")
+            print(f"   响应预览: {response.content[:100]}...")
 
     except Exception as e:
         print(f"   ❌ 模型连接失败: {str(e)}")
@@ -56,6 +60,7 @@ def test_model_connection():
 
     # 测试LLM服务
     print("\n3. 测试LLM服务:")
+    llm_service = None
     try:
         llm_service = LLMService()
 
@@ -74,6 +79,9 @@ def test_model_connection():
     except Exception as e:
         print(f"   ❌ LLM服务测试失败: {str(e)}")
         assert False, f"LLM服务测试失败: {str(e)}"
+    finally:
+        if llm_service is not None:
+            llm_service.close()
 
     print("\n4. 模型信息总结:")
     print(f"   ✅ 使用的是真实的阿里云通义千问大模型")
@@ -90,21 +98,23 @@ def test_api_quota():
     print("\n5. 测试API配额和限制:")
 
     try:
-        llm = ChatOpenAI(
-            model="qwen-plus",
-            openai_api_key=os.environ.get('DASHSCOPE_API_KEY'),
-            openai_api_base=os.environ.get('OPENAI_API_BASE'),
-            temperature=0.1,
-            max_tokens=50,
-            timeout=10
-        )
+        with httpx.Client(timeout=httpx.Timeout(10, connect=10.0, read=10, write=10)) as http_client:
+            llm = ChatOpenAI(
+                model="qwen-plus",
+                api_key=os.environ.get('DASHSCOPE_API_KEY'),
+                base_url=os.environ.get('OPENAI_API_BASE') or 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+                temperature=0.1,
+                max_tokens=50,
+                timeout=10,
+                http_client=http_client
+            )
 
-        # 发送多个快速请求测试
-        for i in range(3):
-            response = llm.invoke([HumanMessage(content=f"这是第{i+1}个测试消息，请简单回复。")])
-            print(f"   请求 {i+1}: 成功 ({len(response.content)} 字符)")
+            # 发送多个快速请求测试
+            for i in range(3):
+                response = llm.invoke([HumanMessage(content=f"这是第{i+1}个测试消息，请简单回复。")])
+                print(f"   请求 {i+1}: 成功 ({len(response.content)} 字符)")
 
-        print("   ✅ API配额充足，无速率限制问题")
+            print("   ✅ API配额充足，无速率限制问题")
 
     except Exception as e:
         print(f"   ⚠️  可能遇到配额或速率限制: {str(e)}")
@@ -113,9 +123,9 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
 
-    success = test_model_connection()
-    if success:
-        test_api_quota()
+    # 若发生异常，函数内部会 assert False 触发失败
+    test_model_connection()
+    test_api_quota()
 
     print("\n" + "=" * 60)
     print("测试完成!")

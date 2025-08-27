@@ -183,12 +183,17 @@ def get_timeline():
         
         timeline = []
         for case in recent_cases:
+            # 安全处理描述字段
+            description = case.description or ''
+            if len(description) > 100:
+                description = description[:100] + '...'
+            
             timeline.append({
                 'id': case.id,
-                'title': case.title,
-                'description': case.description[:100] + '...' if len(case.description) > 100 else case.description,
+                'title': case.title or '未命名案例',
+                'description': description,
                 'status': case.status,
-                'category': case.category,
+                'category': case.category or '未分类',
                 'created_at': case.created_at.isoformat() + 'Z' if case.created_at else None,
                 'updated_at': case.updated_at.isoformat() + 'Z' if case.updated_at else None
             })
@@ -202,6 +207,49 @@ def get_timeline():
             }
         })
     except Exception as e:
+        # 添加详细的错误日志
+        print(f"Timeline API Error: {str(e)}")
+        print(f"User ID: {user_id}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'code': 500,
+            'status': 'error',
+            'error': {
+                'type': 'INTERNAL_ERROR',
+                'message': str(e)
+            }
+        }), 500
+
+
+@bp.route('/test', methods=['GET'])
+@jwt_required()
+def test_connection():
+    """测试数据库连接和认证"""
+    try:
+        user_id = get_jwt_identity()
+        print(f"Test endpoint - User ID: {user_id}")
+        
+        # 测试数据库连接
+        case_count = Case.query.count()
+        user_case_count = Case.query.filter_by(user_id=int(user_id)).count()
+        
+        return jsonify({
+            'code': 200,
+            'status': 'success',
+            'data': {
+                'user_id': user_id,
+                'total_cases': case_count,
+                'user_cases': user_case_count,
+                'message': 'Database connection OK'
+            }
+        })
+    except Exception as e:
+        print(f"Test endpoint error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
         return jsonify({
             'code': 500,
             'status': 'error',

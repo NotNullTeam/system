@@ -1,7 +1,7 @@
 """
 LangGraph Agent服务
 
-使用langgraph实现的智能对话Agent服务，替代原有的简单状态处理逻辑。
+使用langgraph实现的智能对话Agent服务。
 """
 
 import time
@@ -13,6 +13,7 @@ from app import create_app, db
 from app.models.case import Case, Node, Edge
 # 任务队列依赖已移除
 from app.services.infrastructure.task_monitor import with_monitoring_and_retry
+from app.services.infrastructure.task_queue import get_task_queue
 from app.services.ai.agent_workflow import create_agent_workflow, create_response_processing_workflow
 from app.services.ai.agent_state import AgentState
 from app.services.ai.agent_service import RetrievalService
@@ -37,12 +38,12 @@ def analyze_user_query_with_langgraph(case_id: str, node_id: str, query: str):
             logger.info(f"开始使用langgraph分析用户查询: case_id={case_id}, node_id={node_id}")
 
             # 获取当前任务
-            job = get_current_job()
-            if job:
-                job.meta['status'] = 'processing'
-                job.meta['progress'] = 0
-                job.meta['step'] = 'initializing'
-                job.save_meta()
+            # job = get_current_job()  # 线程池队列不支持
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['status'] = 'processing'
+            #     job.meta['progress'] = 0
+            #     job.meta['step'] = 'initializing'
+            #     job.save_meta()
 
             # 获取节点
             node = db.session.get(Node, node_id)
@@ -54,11 +55,11 @@ def analyze_user_query_with_langgraph(case_id: str, node_id: str, query: str):
             if not case:
                 raise Exception(f"案例 {case_id} 不存在")
 
-            # 更新任务进度
-            if job:
-                job.meta['progress'] = 10
-                job.meta['step'] = 'creating_workflow'
-                job.save_meta()
+            # 线程池队列不支持job进度更新
+            # if job:
+            #     job.meta['progress'] = 10
+            #     job.meta['step'] = 'creating_workflow'
+            #     job.save_meta()
 
             # 创建Agent工作流
             try:
@@ -68,14 +69,14 @@ def analyze_user_query_with_langgraph(case_id: str, node_id: str, query: str):
                 logger.error(f"创建Agent工作流失败: {str(e)}")
                 raise Exception(f"无法创建Agent工作流: {str(e)}")
 
-            # 更新任务进度
-            if job:
-                job.meta['progress'] = 20
-                job.meta['step'] = 'initializing_state'
-                job.save_meta()
+            # 线程池队列不支持job进度更新
+            # if job:
+            #     job.meta['progress'] = 20
+            #     job.meta['step'] = 'initializing_state'
+            #     job.save_meta()
 
             # 获取案例相关信息（设备厂商等）
-            vendor = case.metadata.get('vendor') if case.metadata else None
+            vendor = case.case_metadata.get('vendor') if case.case_metadata else None
 
             # 初始化Agent状态
             initial_state: AgentState = {
@@ -95,21 +96,15 @@ def analyze_user_query_with_langgraph(case_id: str, node_id: str, query: str):
                 "step": "initializing"
             }
 
-            # 更新任务进度
-            if job:
-                job.meta['progress'] = 30
-                job.meta['step'] = 'executing_workflow'
-                job.save_meta()
-
             # 执行Agent工作流
             logger.info("开始执行Agent工作流")
             final_state = agent_workflow.invoke(initial_state)
 
             # 更新任务进度
-            if job:
-                job.meta['progress'] = 90
-                job.meta['step'] = 'finalizing'
-                job.save_meta()
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['progress'] = 90
+            #     job.meta['step'] = 'finalizing'
+            #     job.save_meta()
 
             # 记录工作流执行结果
             logger.info(f"Agent工作流执行完成，最终步骤: {final_state.get('step')}")
@@ -123,9 +118,9 @@ def analyze_user_query_with_langgraph(case_id: str, node_id: str, query: str):
             case.updated_at = datetime.utcnow()
 
             # 更新案例元数据
-            if case.metadata is None:
-                case.metadata = {}
-            case.metadata.update({
+            if case.case_metadata is None:
+                case.case_metadata = {}
+            case.case_metadata.update({
                 'last_workflow_step': final_state.get('step'),
                 'workflow_executed_at': datetime.utcnow().isoformat(),
                 'need_more_info': final_state.get('need_more_info', False),
@@ -136,17 +131,17 @@ def analyze_user_query_with_langgraph(case_id: str, node_id: str, query: str):
             db.session.commit()
 
             # 更新任务进度
-            if job:
-                job.meta['status'] = 'completed'
-                job.meta['progress'] = 100
-                job.meta['step'] = 'completed'
-                job.meta['final_state'] = {
-                    'step': final_state.get('step'),
-                    'need_more_info': final_state.get('need_more_info'),
-                    'solution_ready': final_state.get('solution_ready'),
-                    'category': final_state.get('category')
-                }
-                job.save_meta()
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['status'] = 'completed'
+            #     job.meta['progress'] = 100
+            #     job.meta['step'] = 'completed'
+            #     job.meta['final_state'] = {
+            #         'step': final_state.get('step'),
+            #         'need_more_info': final_state.get('need_more_info'),
+            #         'solution_ready': final_state.get('solution_ready'),
+            #         'category': final_state.get('category')
+            #     }
+            #     job.save_meta()
 
             logger.info(f"langgraph用户查询分析完成: case_id={case_id}, node_id={node_id}")
 
@@ -169,12 +164,12 @@ def analyze_user_query_with_langgraph(case_id: str, node_id: str, query: str):
                 logger.error(f"更新数据库失败: {str(db_error)}")
 
             # 更新任务状态
-            job = get_current_job()
-            if job:
-                job.meta['status'] = 'failed'
-                job.meta['error'] = str(e)
-                job.meta['step'] = 'error'
-                job.save_meta()
+            # job = get_current_job()  # 线程池队列不支持
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['status'] = 'failed'
+            #     job.meta['error'] = str(e)
+            #     job.meta['step'] = 'error'
+            #     job.save_meta()
 
             raise
 
@@ -198,12 +193,12 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
             logger.info(f"开始使用langgraph处理用户响应: case_id={case_id}, node_id={node_id}")
 
             # 获取当前任务
-            job = get_current_job()
-            if job:
-                job.meta['status'] = 'processing'
-                job.meta['progress'] = 0
-                job.meta['step'] = 'initializing'
-                job.save_meta()
+            # job = get_current_job()  # 线程池队列不支持
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['status'] = 'processing'
+            #     job.meta['progress'] = 0
+            #     job.meta['step'] = 'initializing'
+            #     job.save_meta()
 
             # 获取节点
             node = db.session.get(Node, node_id)
@@ -216,10 +211,10 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
                 raise Exception(f"案例 {case_id} 不存在")
 
             # 更新任务进度
-            if job:
-                job.meta['progress'] = 10
-                job.meta['step'] = 'creating_response_workflow'
-                job.save_meta()
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['progress'] = 10
+            #     job.meta['step'] = 'creating_response_workflow'
+            #     job.save_meta()
 
             # 创建响应处理工作流
             try:
@@ -230,10 +225,10 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
                 raise Exception(f"无法创建响应处理工作流: {str(e)}")
 
             # 更新任务进度
-            if job:
-                job.meta['progress'] = 20
-                job.meta['step'] = 'preparing_enhanced_query'
-                job.save_meta()
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['progress'] = 20
+            #     job.meta['step'] = 'preparing_enhanced_query'
+            #     job.save_meta()
 
             # 构建增强的查询（结合原始问题和用户补充信息）
             original_query = case.original_query if hasattr(case, 'original_query') else ""
@@ -241,7 +236,7 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
             enhanced_query = f"原始问题: {original_query}\n\n补充信息: {user_response}"
 
             # 获取案例相关信息
-            vendor = case.metadata.get('vendor') if case.metadata else None
+            vendor = case.case_metadata.get('vendor') if case.case_metadata else None
 
             # 初始化Agent状态（跳过分析步骤，直接进入检索和解决方案生成）
             initial_state: AgentState = {
@@ -249,7 +244,7 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
                 "context": [],
                 "user_query": enhanced_query,
                 "vendor": vendor,
-                "category": case.metadata.get('category') if case.metadata else None,
+                "category": case.case_metadata.get('category') if case.case_metadata else None,
                 "need_more_info": False,  # 已经获得用户响应，不再需要更多信息
                 "solution_ready": False,
                 "case_id": case_id,
@@ -262,20 +257,20 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
             }
 
             # 更新任务进度
-            if job:
-                job.meta['progress'] = 30
-                job.meta['step'] = 'executing_response_workflow'
-                job.save_meta()
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['progress'] = 30
+            #     job.meta['step'] = 'executing_response_workflow'
+            #     job.save_meta()
 
             # 执行响应处理工作流
             logger.info("开始执行响应处理工作流")
             final_state = response_workflow.invoke(initial_state)
 
             # 更新任务进度
-            if job:
-                job.meta['progress'] = 90
-                job.meta['step'] = 'finalizing'
-                job.save_meta()
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['progress'] = 90
+            #     job.meta['step'] = 'finalizing'
+            #     job.save_meta()
 
             # 记录工作流执行结果
             logger.info(f"响应处理工作流执行完成，最终步骤: {final_state.get('step')}")
@@ -289,9 +284,9 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
             case.updated_at = datetime.utcnow()
 
             # 更新案例元数据
-            if case.metadata is None:
-                case.metadata = {}
-            case.metadata.update({
+            if case.case_metadata is None:
+                case.case_metadata = {}
+            case.case_metadata.update({
                 'last_response_processed_at': datetime.utcnow().isoformat(),
                 'response_workflow_step': final_state.get('step'),
                 'solution_ready': final_state.get('solution_ready', False),
@@ -303,16 +298,16 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
             db.session.commit()
 
             # 更新任务进度
-            if job:
-                job.meta['status'] = 'completed'
-                job.meta['progress'] = 100
-                job.meta['step'] = 'completed'
-                job.meta['final_state'] = {
-                    'step': final_state.get('step'),
-                    'solution_ready': final_state.get('solution_ready'),
-                    'category': final_state.get('category')
-                }
-                job.save_meta()
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['status'] = 'completed'
+            #     job.meta['progress'] = 100
+            #     job.meta['step'] = 'completed'
+            #     job.meta['final_state'] = {
+            #         'step': final_state.get('step'),
+            #         'solution_ready': final_state.get('solution_ready'),
+            #         'category': final_state.get('category')
+            #     }
+            #     job.save_meta()
 
             logger.info(f"langgraph用户响应处理完成: case_id={case_id}, node_id={node_id}")
 
@@ -335,12 +330,12 @@ def process_user_response_with_langgraph(case_id: str, node_id: str, response_da
                 logger.error(f"更新数据库失败: {str(db_error)}")
 
             # 更新任务状态
-            job = get_current_job()
-            if job:
-                job.meta['status'] = 'failed'
-                job.meta['error'] = str(e)
-                job.meta['step'] = 'error'
-                job.save_meta()
+            # job = get_current_job()  # 线程池队列不支持
+            # if job:  # 线程池队列不支持job操作
+            #     job.meta['status'] = 'failed'
+            #     job.meta['error'] = str(e)
+            #     job.meta['step'] = 'error'
+            #     job.save_meta()
 
             raise
 

@@ -32,6 +32,7 @@ class LLMService:
     def __init__(self):
         """初始化LLM服务；在缺少API Key或初始化失败时启用快速本地Mock，保障测试稳定和性能基准通过。"""
         self.is_mock = False
+        self._http_client = None
         try:
             # 在测试环境或显式要求下强制使用Mock
             if os.environ.get('PYTEST_CURRENT_TEST') or os.environ.get('LLM_USE_MOCK') == '1':
@@ -50,18 +51,29 @@ class LLMService:
 
             # 允许通过环境变量调整模型、超时与最大生成长度
             model_name = os.environ.get('LLM_MODEL', 'qwen-plus')
-            timeout_s = int(os.environ.get('LLM_TIMEOUT', '5'))
-            max_tokens = int(os.environ.get('LLM_MAX_TOKENS', '512'))
+            timeout_s = int(os.environ.get('LLM_TIMEOUT', '60'))
+            max_tokens = int(os.environ.get('LLM_MAX_TOKENS', '200'))
+            max_retries = int(os.environ.get('LLM_MAX_RETRIES', '1'))
 
+            # 配置HTTP客户端确保超时设置生效
+            import httpx
+            http_client = httpx.Client(
+                timeout=httpx.Timeout(timeout_s, connect=10.0, read=timeout_s, write=timeout_s)
+            )
+            
             self.llm = ChatOpenAI(
                 model=model_name,
-                openai_api_key=api_key,
-                openai_api_base=os.environ.get('OPENAI_API_BASE', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
+                api_key=api_key,
+                base_url=os.environ.get('OPENAI_API_BASE', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
                 temperature=0.0,  # 提高确定性，便于缓存与测试
                 max_tokens=max_tokens,
                 timeout=timeout_s,
-                max_retries=0
+                max_retries=max_retries,  # 通过环境变量控制重试次数，默认0
+                http_client=http_client  # 使用自定义HTTP客户端
             )
+            # 强制覆盖request_timeout属性
+            self.llm.request_timeout = timeout_s
+            self._http_client = http_client
             logger.info("LLM服务初始化成功")
         except Exception as e:
             logger.warning(f"LLM服务初始化失败，降级为Mock模式: {str(e)}")
@@ -106,6 +118,10 @@ class LLMService:
             analysis_prompt = ANALYSIS_PROMPT.format(user_query=query, context=context or {})
             messages = [SystemMessage(content=system_prompt), HumanMessage(content=analysis_prompt)]
             start_time = time.time()
+            
+            # 调试日志：显示实际调用参数
+            logger.debug(f"LLM调用参数 - max_tokens: {self.llm.max_tokens}, model: {self.llm.model_name}")
+            
             response = self.llm.invoke(messages)
             duration = time.time() - start_time
             result = {
@@ -219,7 +235,7 @@ class LLMService:
                 'clarification': f'生成澄清提示过程中出现错误: {str(e)}'
             }
 
-    @monitor_performance("llm_solution", slow_threshold=6.0)
+    @monitor_performance("llm_solution", slow_threshold=65.0)  # 调整监控阈值匹配60秒超时设置
     def generate_solution(self, query: str, context: Optional[Dict[str, Any]] = None, vendor: str = "Huawei") -> Dict[str, Any]:
         """根据问题生成解决方案。"""
         try:
@@ -244,7 +260,15 @@ class LLMService:
                 HumanMessage(content=prompt)
             ]
 
+            # 记录开始时间用于调试
+            import time
+            start = time.time()
+            
             response = self.llm.invoke(messages)
+            
+            elapsed = time.time() - start
+            logger.info(f"解决方案生成完成，耗时: {elapsed:.2f}s")
+            
             return {
                 'solution': response.content,
                 'vendor': vendor
@@ -325,3 +349,20 @@ class LLMService:
                 'error': str(e),
                 'model_available': False
             }
+
+    def close(self) -> None:
+        """关闭底层HTTP客户端以释放连接资源。"""
+        try:
+            client = getattr(self, "_http_client", None)
+            if client is not None:
+                client.close()
+                self._http_client = None
+        except Exception as e:
+            logger.debug(f"关闭HTTP客户端时发生异常: {e}")
+
+    def __del__(self):
+        # 确保在对象回收时释放连接
+        try:
+            self.close()
+        except Exception:
+            pass

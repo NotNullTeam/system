@@ -84,7 +84,7 @@ export default function DiagnosticCanvas({
             stroke: '#c3c3c3',
             lineWidth: 2,
             endArrow: {
-              path: G6.Arrow.triangle(8, 10, 15),
+              path: 'M 0,0 L 8,4 L 0,8 Z',
               fill: '#c3c3c3'
             }
           }
@@ -99,8 +99,11 @@ export default function DiagnosticCanvas({
         }
       });
 
+      // 将 graph 实例赋值给 ref
+      graphRef.current = graph;
+
       // 节点点击事件
-      graphRef.current.on('node:click', (evt) => {
+      graph.on('node:click', (evt) => {
         const node = evt.item;
         const model = node.getModel();
         if (onNodeClick) {
@@ -109,17 +112,17 @@ export default function DiagnosticCanvas({
       });
 
       // 节点悬停事件
-      graphRef.current.on('node:mouseenter', (evt) => {
+      graph.on('node:mouseenter', (evt) => {
         const node = evt.item;
         const model = node.getModel();
         setHoveredNode(model.id);
-        graphRef.current.setItemState(node, 'hover', true);
+        graph.setItemState(node, 'hover', true);
       });
 
-      graphRef.current.on('node:mouseleave', (evt) => {
+      graph.on('node:mouseleave', (evt) => {
         const node = evt.item;
         setHoveredNode(null);
-        graphRef.current.setItemState(node, 'hover', false);
+        graph.setItemState(node, 'hover', false);
       });
     }
 
@@ -199,13 +202,17 @@ export default function DiagnosticCanvas({
       });
     }
 
-    graphRef.current.data(data);
-    graphRef.current.render();
+    if (graphRef.current) {
+      graphRef.current.setData(data);
+      graphRef.current.render();
+    }
 
     // 自适应画布
-    if (nodes.length > 0) {
+    if (nodes.length > 0 && graphRef.current) {
       setTimeout(() => {
-        graphRef.current.fitView(20);
+        if (graphRef.current) {
+          graphRef.current.fitView(20);
+        }
       }, 100);
     }
 
@@ -225,7 +232,7 @@ export default function DiagnosticCanvas({
       if (graphRef.current && containerRef.current) {
         const width = containerRef.current.scrollWidth;
         const height = containerRef.current.scrollHeight || 600;
-        graphRef.current.changeSize(width, height);
+        graphRef.current.setSize([width, height]);
       }
     };
 
