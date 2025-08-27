@@ -1,0 +1,66 @@
+# 通用文本文件行尾符规范化
+* text=auto
+
+# 前端文件 - 使用LF行尾符
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.vue  text eol=lf
+*.css  text eol=lf
+*.scss text eol=lf
+*.less text eol=lf
+*.html text eol=lf
+
+# 后端文件 - 使用LF行尾符
+*.sh   text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+LICENSE text eol=lf
+
+# Windows批处理文件 - 使用CRLF行尾符
+*.bat  text eol=crlf
+
+# 二进制文件
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.svg  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.tar  binary
+*.tgz  binary
+*.mp4  binary
+*.mp3  binary
+
+# Git LFS - AI模型文件
+*.safetensors filter=lfs diff=lfs merge=lfs -text
+*.pth         filter=lfs diff=lfs merge=lfs -text
+*.pt          filter=lfs diff=lfs merge=lfs -text
+*.bin         filter=lfs diff=lfs merge=lfs -text
+*.h5          filter=lfs diff=lfs merge=lfs -text
+*.onnx        filter=lfs diff=lfs merge=lfs -text
+
+# Git LFS - 压缩文件和数据文件
+*.zip    filter=lfs diff=lfs merge=lfs -text
+*.tar.gz filter=lfs diff=lfs merge=lfs -text
+*.gz     filter=lfs diff=lfs merge=lfs -text
+*.csv    filter=lfs diff=lfs merge=lfs -text
+*.jsonl  filter=lfs diff=lfs merge=lfs -text
+*.npy    filter=lfs diff=lfs merge=lfs -text
+*.parquet filter=lfs diff=lfs merge=lfs -text
+
+# Git LFS - Jupyter notebooks和媒体文件
+*.ipynb filter=lfs diff=lfs merge=lfs -text
+*.png   filter=lfs diff=lfs merge=lfs -text
+*.jpg   filter=lfs diff=lfs merge=lfs -text
+*.jpeg  filter=lfs diff=lfs merge=lfs -text
+*.gif   filter=lfs diff=lfs merge=lfs -text
+*.mp4   filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,72 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    volumes:
+      - .:/app
+      - ./uploads:/app/uploads
+      - ./instance:/app/instance
+      - ./logs:/app/logs
+      - ./pip.conf:/root/.pip/pip.conf
+    env_file:
+      - ./.env
+#    environment:
+#      - LLM_USE_MOCK=1
+    dns:
+      - 8.8.8.8
+      - 223.5.5.5
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - weaviate
+      - ollama
+    networks:
+      - ip-expert-network
+
+  redis:
+    image: "redis:7-alpine"
+    container_name: backend-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    networks:
+      - ip-expert-network
+    restart: unless-stopped
+
+  weaviate:
+    image: semitechnologies/weaviate:1.24.1
+    container_name: backend-weaviate
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - ./weaviate_data:/var/lib/weaviate
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      CLUSTER_HOSTNAME: 'node1'
+      ENABLE_MODULES: ''
+    networks:
+      - ip-expert-network
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama
+    container_name: backend-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+    networks:
+      - ip-expert-network
+    restart: unless-stopped
+
+networks:
+  ip-expert-network:
+    driver: bridge

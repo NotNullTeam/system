@@ -1,0 +1,67 @@
+# 设置默认自动文本处理，保持跨平台一致性
+* text=auto
+
+# -----------------------------
+# 行结束符策略
+# -----------------------------
+# Unix/Mac shell 脚本使用 LF
+*.sh text eol=lf
+# Windows 批处理脚本使用 CRLF
+*.bat text eol=crlf
+
+# -----------------------------
+# 文档与配置文件保持为文本
+# -----------------------------
+*.md   text eol=lf
+*.txt  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+LICENSE text eol=lf
+
+# -----------------------------
+# 二进制文件（禁用 diff）
+# -----------------------------
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.svg  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.tar  binary
+*.tgz  binary
+*.mp4  binary
+*.mp3  binary
+
+# -----------------------------
+# GitHub Linguist 覆盖
+# -----------------------------
+# 将 docs 目录标记为文档
+/docs/* linguist-documentation=true
+
+# Git LFS 配置
+# 任何需要通过 LFS 存储的大文件类型都在此列出
+# 格式：<pattern> filter=lfs diff=lfs merge=lfs -text
+
+# 文档/演示
+*.pdf filter=lfs diff=lfs merge=lfs -text
+*.ppt* filter=lfs diff=lfs merge=lfs -text
+*.key filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.mov filter=lfs diff=lfs merge=lfs -text
+*.gif filter=lfs diff=lfs merge=lfs -text
+
+# 数据集
+*.zip filter=lfs diff=lfs merge=lfs -text
+*.tar.gz filter=lfs diff=lfs merge=lfs -text
+*.npy filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.jsonl filter=lfs diff=lfs merge=lfs -text
+*.csv filter=lfs diff=lfs merge=lfs -text
+
+# 图片
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text

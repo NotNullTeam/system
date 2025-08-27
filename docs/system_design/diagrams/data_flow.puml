@@ -1,0 +1,101 @@
+@startuml DataFlow
+' 数据链路全景流程图 (本地化部署版本)
+' Author: 项目文档自动生成
+' Encoding: UTF-8
+
+title IP智慧解答专家系统 — 数据链路全景图
+
+actor 用户
+participant 前端
+participant Backend as "后端\n(本地 Flask)"
+database RDS as "关系型数据库\n(Docker MySQL)"
+participant LocalStorage as "本地文件存储"
+participant Worker as "~~后台任务~~\n~~(RQ)~~\n(已移除)"
+participant DM as "文档智能解析\n(阿里云IDP)"
+participant BGE as "text-embedding-v4 向量模型\n(阿里云百炼平台)"
+database VectorDB as "向量数据库\n(Docker Weaviate)"
+participant Retriever as "召回模块\n(向量+BM25)"
+participant Reranker as "Qwen3-Reranker 重排序模型\n(OLLAMA 本地部署)"
+participant Bailian as " Qwen-plus 大模型生成最终回复\n(阿里云百炼)"
+participant LangSmith as "可观测性(可选)\n(LangSmith)"
+participant Dashboard as "数据看板\n前端ECharts"
+
+Backend --> LangSmith : Trace (链路日志)
+
+== 文档入库 (同步处理) ==
+用户 -> 前端 : 拖拽/选择文件
+前端 -> Backend : POST /knowledge/documents (multipart)
+Backend -> LocalStorage : 上传原始文件
+Backend -> RDS : 写入 metadata & 创建 job (status=pending)
+
+== 文档处理 (同步处理) ==
+Backend -> RDS : 更新 job status=processing
+Backend -> LocalStorage : 读取文件
+Backend -> DM : 调用 IDP 解析 (电子+OCR/NLP)
+DM --> Backend : 结构化 JSON/Markdown
+Backend -> LocalStorage : 存储 parsed 文件
+Backend -> BGE : 文本向量化
+BGE --> Backend : 向量结果
+Backend -> VectorDB : 写入向量 + 元数据
+Backend -> RDS : 更新 doc status=INDEXED, job status=completed
+note right of Backend
+  若处理失败, 更新 status=FAILED
+  支持 POST /knowledge/documents/{docId}/reparse 重试
+  注意：已改为同步处理，无需Worker进程
+end note
+
+== 问答流程 (召回+精排) ==
+用户 -> 前端 : 提问 (+ 可选截图)
+前端 -> Backend : POST /cases
+Backend -> Retriever : 调用召回模块
+Retriever -> VectorDB : 查询向量 & BM25
+Retriever --> Backend : 返回候选片段 (例如 Top 50)
+Backend -> Reranker : 问题 + 候选片段
+Reranker --> Backend : 返回精排后片段 (例如 Top 5)
+Backend -> Bailian : Prompt + 精排后 Context
+Bailian --> Backend : 解决方案 (分步骤/引用)
+Backend -> RDS : 存节点 & 边
+Backend -> 前端 : 返回诊断路径图
+前端 -> 用户 : 渲染方案 / 引用 / 进度
+
+== 反馈闭环 ==
+用户 -> 前端 : 👍 / 👎 反馈
+前端 -> Backend : POST /cases/{id}/feedback
+Backend -> RDS : 记录反馈
+
+== 附件上传 ==
+用户 -> 前端 : 上传截图 / 日志等附件
+前端 -> Backend : POST /files (multipart)
+Backend -> LocalStorage : 上传附件
+Backend -> RDS : 写入 file metadata
+Backend --> 前端 : fileId + url (本地路径)
+
+== 鉴权登录 ==
+用户 -> 前端 : 输入用户名/密码
+前端 -> Backend : POST /auth/login
+Backend -> RDS : 校验用户凭据
+Backend --> 前端 : access_token (JWT)
+
+== 多轮追问 ==
+loop 用户补充信息
+    用户 -> 前端 : 补充信息 / 上传附件
+    前端 -> Backend : POST /cases/{id}/interactions
+    Backend -> Retriever : 调用召回模块
+    Retriever -> VectorDB : 查询向量 & BM25
+    Retriever --> Backend : 返回候选片段
+    Backend -> Reranker : 问题 + 候选片段
+    Reranker --> Backend : 返回精排后片段
+    Backend -> Bailian : 生成分析 / 追问 / 方案
+    Backend -> RDS : 存新增节点 & 边
+    Backend --> 前端 : newNodes / newEdges
+    前端 -> 用户 : 更新画布
+end loop
+
+== 统计数据看板 ==
+participant Dashboard as "数据看板\n(前端 ECharts)"
+前端 -> Backend : GET /statistics
+Backend -> RDS : 聚合统计
+Backend --> 前端 : JSON stats
+前端 -> Dashboard : 渲染图表
+
+@enduml

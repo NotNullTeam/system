@@ -1,0 +1,92 @@
+/* HarmonyOS Sans SC 字体引入 */
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/HarmonyOS Sans/HarmonyOS_SansSC/HarmonyOS_SansSC_Thin.ttf') format('truetype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/HarmonyOS Sans/HarmonyOS_SansSC/HarmonyOS_SansSC_Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/HarmonyOS Sans/HarmonyOS_SansSC/HarmonyOS_SansSC_Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/HarmonyOS Sans/HarmonyOS_SansSC/HarmonyOS_SansSC_Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/HarmonyOS Sans/HarmonyOS_SansSC/HarmonyOS_SansSC_Semibold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/HarmonyOS Sans/HarmonyOS_SansSC/HarmonyOS_SansSC_Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/HarmonyOS Sans/HarmonyOS_SansSC/HarmonyOS_SansSC_Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 品牌 CSS 变量（与 tailwind.config.js 对齐） */
+:root {
+  /* blue */
+  --brand-blue-50: #E8F3FF;  --brand-blue-100: #DCEEFF; --brand-blue-200: #B3D8FF;
+  --brand-blue-300: #8AC2FF; --brand-blue-400: #62ABFF; --brand-blue-500: #007DFF;
+  --brand-blue-600: #0061CC; --brand-blue-700: #004699; --brand-blue-800: #002C66; --brand-blue-900: #001333;
+  /* green */
+  --brand-green-50: #E6F9F3; --brand-green-100: #CCF3E7; --brand-green-200: #99E7CF;
+  --brand-green-300: #66DBB7; --brand-green-400: #33CF9F; --brand-green-500: #00C487;
+  --brand-green-600: #00A06B; --brand-green-700: #007C50; --brand-green-800: #005836; --brand-green-900: #00341B;
+  /* yellow */
+  --brand-yellow-50: #FFFBE6; --brand-yellow-100: #FFF6CC; --brand-yellow-200: #FFE999;
+  --brand-yellow-300: #FFDC66; --brand-yellow-400: #FFD033; --brand-yellow-500: #FFC300;
+  --brand-yellow-600: #CC9C00; --brand-yellow-700: #997400; --brand-yellow-800: #664D00; --brand-yellow-900: #332600;
+  /* red */
+  --brand-red-50: #FFECEC; --brand-red-100: #FFD9D9; --brand-red-200: #FFAFAF;
+  --brand-red-300: #FF8585; --brand-red-400: #FF5B5B; --brand-red-500: #FF3131;
+  --brand-red-600: #CC2828; --brand-red-700: #991F1F; --brand-red-800: #661515; --brand-red-900: #330B0B;
+}
+
+/* Tailwind 指令 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局基础样式 */
+html, body, #root { height: 100%; }
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  @apply bg-gray-50 text-gray-800;
+}
+
+/* 暗色模式全局基色 */
+html.dark body {
+  @apply bg-gray-900 text-gray-100;
+}
+
+/* SVG 颜色辅助类（可与变量联动） */
+.svg-brand-fill { fill: var(--brand-blue-500); }
+.svg-brand-stroke { stroke: var(--brand-blue-500); }
