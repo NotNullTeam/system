@@ -179,7 +179,6 @@ const DocumentUploadModal = ({ open, onClose, onSuccess }) => {
 
   // 真实解析进度跟踪
   const trackRealParsingProgress = async (docId, jobId = null) => {
-    console.log('开始跟踪解析进度:', { docId, jobId });
     
     const checkProgress = async () => {
       try {
@@ -189,18 +188,13 @@ const DocumentUploadModal = ({ open, onClose, onSuccess }) => {
         // 优先使用解析任务状态API（更详细）
         if (jobId) {
           try {
-            console.log('调用解析任务状态API:', jobId);
             const jobStatus = await getParsingJobStatus(jobId);
-            console.log('解析任务状态响应:', jobStatus);
             
             if (jobStatus.data) {
               currentJobStatus = jobStatus.data.status;
               currentDocStatus = jobStatus.data.document?.status;
               
-              console.log('当前状态:', { currentJobStatus, currentDocStatus });
-              
               const progress = getProgressFromStatus(currentDocStatus, currentJobStatus);
-              console.log('计算进度:', progress);
               animateParseTo(progress);
               
               if (currentJobStatus === 'COMPLETED') {
@@ -218,30 +212,19 @@ const DocumentUploadModal = ({ open, onClose, onSuccess }) => {
               }
             }
           } catch (error) {
-            console.log('解析任务状态API调用失败:', error);
+            // 解析任务状态API调用失败，静默处理
           }
         }
         
         // 使用文档状态API作为备选
         if (!currentDocStatus) {
-          console.log('调用文档状态API:', docId);
           const docStatus = await getDocumentProcessingStatus(docId);
-          console.log('文档状态响应:', docStatus);
-          console.log('响应数据结构:', docStatus.data);
           
           if (docStatus.data) {
             // 根据后端API实际返回的字段结构获取状态
             currentDocStatus = docStatus.data.documentStatus || docStatus.data.status;
             
-            console.log('文档当前状态:', currentDocStatus);
-            console.log('API响应字段:', {
-              'documentStatus': docStatus.data.documentStatus,
-              'status': docStatus.data.status,
-              'job': docStatus.data.job
-            });
-            
             const progress = getProgressFromStatus(currentDocStatus);
-            console.log('基于文档状态计算进度:', progress);
             animateParseTo(progress);
             
             if (currentDocStatus === 'INDEXED') {
@@ -332,12 +315,9 @@ const DocumentUploadModal = ({ open, onClose, onSuccess }) => {
       animateParseTo(10); // 初始进度平滑到10
       setUploading(false);
 
-      console.log('上传响应:', uploadResponse.data);
-
       // 检查上传响应中是否已经包含解析状态
       if (uploadResponse.data.status === 'PARSING' || uploadResponse.data.status === 'QUEUED') {
         // 后端已经自动开始解析，使用真实进度跟踪
-        console.log('后端已自动开始解析');
         
         // 获取解析任务ID（如果有的话）
         const jobId = uploadResponse.data.jobId || uploadResponse.data.parsing_job_id;
@@ -351,14 +331,12 @@ const DocumentUploadModal = ({ open, onClose, onSuccess }) => {
         trackRealParsingProgress(uploadResponse.data.docId, jobId);
       } else {
         // 如果后端没有自动解析，则手动触发解析
-        console.log('手动触发解析');
         
         try {
           // 等待一小段时间确保上传完全完成
           await new Promise(resolve => setTimeout(resolve, 1000));
           
           const parseResponse = await parseDocumentWithIDP(uploadResponse.data.docId);
-          console.log('解析响应:', parseResponse.data);
           
           // 获取解析任务ID
           const jobId = parseResponse.data?.jobId || parseResponse.data?.parsing_job_id;

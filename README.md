@@ -52,7 +52,6 @@ docker compose up -d --build
 - **Axios** - HTTP 客户端
 - **Tailwind CSS** - 样式框架
 - **Ant Design** - UI组件库
-- **G6** - 图可视化
 
 ### 后端技术栈
 - **Python 3.8+** - 编程语言

@@ -32,7 +32,7 @@ export default function CaseDetail() {
     if (id && id !== 'new') {
       loadCaseData();
     } else if (id === 'new') {
-      setCase({ title: '', description: '', status: 'active' });
+      setCase({ title: '', description: '', status: 'open' });
       setLoading(false);
     }
   }, [id]);
@@ -280,12 +280,13 @@ export default function CaseDetail() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">状态</label>
                 <select
-                  value={case_.status || 'active'}
+                  value={case_.status || 'open'}
                   onChange={(e) => setCase(prev => ({ ...prev, status: e.target.value }))}
                   className="border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="active">活跃</option>
-                  <option value="pending">待处理</option>
+                  <option value="open">待处理</option>
+                  <option value="in_progress">诊断中</option>
+                  <option value="resolved">已解决</option>
                   <option value="closed">已关闭</option>
                 </select>
               </div>

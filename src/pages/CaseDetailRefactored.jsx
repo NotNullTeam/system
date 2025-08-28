@@ -57,27 +57,17 @@ export default function CaseDetailRefactored() {
         getCaseEdges(id)
       ]);
       
-      console.log('🚀 初始加载案例数据:', {
-        caseId: id,
-        caseRes,
-        nodesRes,
-        edgesRes
-      });
       
       setCaseData(caseRes?.data || caseRes);
       
-      // 处理节点数据，确保是数组
-      const nodesList = Array.isArray(nodesRes?.data) ? nodesRes.data : 
+      // 处理节点数据，确保是数组 - 修复嵌套格式问题
+      const nodesList = Array.isArray(nodesRes?.data?.nodes) ? nodesRes.data.nodes :
+                       Array.isArray(nodesRes?.data) ? nodesRes.data : 
                        Array.isArray(nodesRes) ? nodesRes : [];
-      const edgesList = Array.isArray(edgesRes?.data) ? edgesRes.data : 
+      const edgesList = Array.isArray(edgesRes?.data?.edges) ? edgesRes.data.edges :
+                       Array.isArray(edgesRes?.data) ? edgesRes.data : 
                        Array.isArray(edgesRes) ? edgesRes : [];
       
-      console.log('📋 初始节点和边数据:', {
-        nodesList,
-        edgesList,
-        nodesCount: nodesList.length,
-        edgesCount: edgesList.length
-      });
       
       setNodes(nodesList);
       setEdges(edgesList);
@@ -109,25 +99,15 @@ export default function CaseDetailRefactored() {
         getCaseEdges(id)
       ]);
       
-      console.log('🔍 节点数据调试:', {
-        nodesRes,
-        edgesRes,
-        nodesRawData: nodesRes?.data,
-        edgesRawData: edgesRes?.data
-      });
       
-      // 处理节点数据，确保是数组
-      const nodesList = Array.isArray(nodesRes?.data) ? nodesRes.data : 
+      // 处理节点数据，确保是数组 - 修复嵌套格式问题
+      const nodesList = Array.isArray(nodesRes?.data?.nodes) ? nodesRes.data.nodes :
+                       Array.isArray(nodesRes?.data) ? nodesRes.data : 
                        Array.isArray(nodesRes) ? nodesRes : [];
-      const edgesList = Array.isArray(edgesRes?.data) ? edgesRes.data : 
+      const edgesList = Array.isArray(edgesRes?.data?.edges) ? edgesRes.data.edges :
+                       Array.isArray(edgesRes?.data) ? edgesRes.data : 
                        Array.isArray(edgesRes) ? edgesRes : [];
       
-      console.log('📊 处理后的数据:', {
-        nodesList,
-        edgesList,
-        nodesCount: nodesList.length,
-        edgesCount: edgesList.length
-      });
       
       setNodes(nodesList);
       setEdges(edgesList);
@@ -164,9 +144,20 @@ export default function CaseDetailRefactored() {
         attachments: attachments
       });
 
-      // 更新节点和边
-      const newNodes = response?.data?.new_nodes || [];
-      const newEdges = response?.data?.new_edges || [];
+      // 兼容后端返回字段命名（snake_case / camelCase）
+      const respData = response?.data || response || {};
+      const newNodes = Array.isArray(respData?.new_nodes)
+        ? respData.new_nodes
+        : Array.isArray(respData?.newNodes)
+        ? respData.newNodes
+        : [];
+      const newEdges = Array.isArray(respData?.new_edges)
+        ? respData.new_edges
+        : Array.isArray(respData?.newEdges)
+        ? respData.newEdges
+        : [];
+      const processingNodeId =
+        respData?.processingNodeId ?? respData?.processing_node_id ?? null;
       
       if (newNodes.length > 0) {
         setNodes(prev => [...prev, ...newNodes]);
@@ -186,9 +177,42 @@ export default function CaseDetailRefactored() {
           handleNodeClick(lastNewNode.id);
         }, 500);
       }
+
+      // 定向轮询：等待处理中的节点完成（避免长期“运行中”）
+      if (processingNodeId) {
+        const startTs = Date.now();
+        const timeoutMs = 120000; // 最多轮询2分钟
+        const pollIntervalMs = 2000;
+
+        const pollProcessing = async () => {
+          try {
+            const detail = await getNodeDetail(id, processingNodeId);
+            const nodeObj = detail?.data || detail;
+            const status = nodeObj?.status;
+            if (status && status !== 'PROCESSING') {
+              await refreshNodes();
+              setProcessing(false);
+              return;
+            }
+          } catch (err) {
+            // 忽略错误并继续短暂重试
+          }
+          if (Date.now() - startTs < timeoutMs) {
+            setTimeout(pollProcessing, pollIntervalMs);
+          } else {
+            // 超时后结束loading但仍保留当前节点列表
+            setProcessing(false);
+          }
+        };
+
+        // 稍等片刻启动轮询，给后端任务提交/事务提交一些时间
+        setTimeout(pollProcessing, 1000);
+      } else {
+        // 无处理节点ID，直接结束processing
+        setProcessing(false);
+      }
     } catch (e) {
       alert(e?.response?.data?.error?.message || '提交失败');
-    } finally {
       setProcessing(false);
     }
   }
@@ -315,16 +339,18 @@ export default function CaseDetailRefactored() {
             诊断案例 #{id}: {caseData?.title || '未命名'}
           </h1>
           <span className={`px-2 py-1 text-xs rounded-full ${
-            caseData?.status === 'active' ? 'bg-green-100 text-green-800' :
+            caseData?.status === 'in_progress' ? 'bg-green-100 text-green-800' :
             caseData?.status === 'resolved' ? 'bg-blue-100 text-blue-800' :
+            caseData?.status === 'closed' ? 'bg-gray-200 text-gray-700' :
             'bg-gray-100 text-gray-800'
           }`}>
-            {caseData?.status === 'active' ? '诊断中' :
-             caseData?.status === 'resolved' ? '已解决' : '待处理'}
+            {caseData?.status === 'in_progress' ? '诊断中' :
+             caseData?.status === 'resolved' ? '已解决' :
+             caseData?.status === 'closed' ? '已关闭' : '待处理'}
           </span>
         </div>
         <div className="text-sm text-gray-500">
-          创建于 {caseData?.created_at ? new Date(caseData.created_at).toLocaleString() : '-'}
+          创建于 {(caseData?.createdAt || caseData?.created_at) ? new Date(caseData.createdAt || caseData.created_at).toLocaleString() : '-'}
         </div>
       </div>
 
@@ -359,7 +385,7 @@ export default function CaseDetailRefactored() {
                       步骤 {index + 1}: {node.title || node.type}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {node.created_at ? new Date(node.created_at).toLocaleTimeString() : ''}
+                      {(node?.metadata?.timestamp || node?.createdAt || node?.created_at || node?.timestamp) ? new Date(node.metadata?.timestamp || node.createdAt || node.created_at || node.timestamp).toLocaleTimeString() : ''}
                     </div>
                   </div>
                 </div>
@@ -368,7 +394,7 @@ export default function CaseDetailRefactored() {
           </div>
         </div>
 
-        {/* 中间：画布区域 */}
+        {/* 画布区域 - 现在占据大部分空间 */}
         <div className="flex-1 p-4">
           <DiagnosticCanvas
             caseId={id}
@@ -378,197 +404,6 @@ export default function CaseDetailRefactored() {
             loading={processing}
             activeNodeId={activeNode?.id}
           />
-        </div>
-
-        {/* 右侧：详情面板 */}
-        <div className="w-96 bg-white border-l flex flex-col">
-          {/* 面板标签页 */}
-          <div className="border-b">
-            <div className="flex">
-              <button
-                onClick={() => setRightPanelTab('detail')}
-                className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  rightPanelTab === 'detail'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                节点详情
-              </button>
-              {activeNode?.type === 'SOLUTION' && (
-                <button
-                  onClick={() => setRightPanelTab('solution')}
-                  className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    rightPanelTab === 'solution'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  解决方案
-                </button>
-              )}
-              {activeNode && (
-                <button
-                  onClick={() => setRightPanelTab('analysis')}
-                  className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    rightPanelTab === 'analysis'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  AI分析
-                </button>
-              )}
-              <button
-                onClick={() => setRightPanelTab('feedback')}
-                className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  rightPanelTab === 'feedback'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                反馈
-              </button>
-            </div>
-          </div>
-
-          {/* 面板内容 */}
-          <div className="flex-1 overflow-y-auto">
-            {rightPanelTab === 'detail' && activeNode && (
-              <div className="p-4 space-y-4">
-                {/* 节点基本信息 */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {activeNode.title || activeNode.type}
-                  </h3>
-                  <div className="text-sm text-gray-500 space-y-1">
-                    <div>类型: {activeNode.type}</div>
-                    <div>状态: {activeNode.status}</div>
-                    <div>时间: {activeNode.created_at ? new Date(activeNode.created_at).toLocaleString() : '-'}</div>
-                  </div>
-                </div>
-
-                {/* 节点内容 */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">内容</h4>
-                  <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-800 whitespace-pre-wrap">
-                    {activeNode.content || activeNode.description || '暂无内容'}
-                  </div>
-                </div>
-
-                {/* 如果是等待用户输入的节点，显示输入表单 */}
-                {activeNode.status === 'AWAITING_USER_INPUT' && (
-                  <form onSubmit={handleUserResponse} className="space-y-3 pt-3 border-t">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        请提供更多信息
-                      </label>
-                      <textarea
-                        value={userInput}
-                        onChange={(e) => setUserInput(e.target.value)}
-                        rows={4}
-                        placeholder="输入您的回复..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                        disabled={processing}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        附件（可选）
-                      </label>
-                      <input
-                        type="file"
-                        multiple
-                        onChange={handleFileUpload}
-                        className="text-sm"
-                        disabled={processing}
-                      />
-                      {attachments.length > 0 && (
-                        <div className="mt-2 text-xs text-gray-500">
-                          已上传 {attachments.length} 个文件
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={processing || (!userInput.trim() && attachments.length === 0)}
-                      className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {processing ? '提交中...' : '提交回复'}
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
-
-            {rightPanelTab === 'solution' && activeNode?.type === 'SOLUTION' && (
-              <div className="p-4 space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">解决方案</h3>
-                
-                {activeNode.solution && (
-                  <div className="space-y-3">
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-green-900 mb-2">推荐方案</h4>
-                      <div className="text-sm text-green-800 whitespace-pre-wrap">
-                        {activeNode.solution}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeNode.commands && activeNode.commands.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">相关命令</h4>
-                    <div className="space-y-2">
-                      {activeNode.commands.map((cmd, index) => (
-                        <div key={index} className="bg-gray-900 text-green-400 rounded p-3 font-mono text-sm">
-                          <div className="flex justify-between items-start">
-                            <code className="flex-1">{cmd}</code>
-                            <button
-                              onClick={() => navigator.clipboard.writeText(cmd)}
-                              className="ml-2 text-gray-400 hover:text-white"
-                              title="复制"
-                            >
-                              📋
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {activeNode.references && activeNode.references.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">参考资料</h4>
-                    <ul className="space-y-1 text-sm">
-                      {activeNode.references.map((ref, index) => (
-                        <li key={index} className="text-blue-600 hover:underline cursor-pointer">
-                          • {ref}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {rightPanelTab === 'analysis' && activeNode && (
-              <AIAnalysisPanel 
-                node={activeNode}
-                loading={analysisLoading}
-                result={analysisResult}
-                error={analysisError}
-                onAnalyze={handleAIAnalysis}
-              />
-            )}
-
-            {rightPanelTab === 'feedback' && (
-              <FeedbackPanel onSubmit={handleFeedbackSubmit} />
-            )}
-          </div>
         </div>
       </div>
     </div>

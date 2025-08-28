@@ -133,7 +133,6 @@ export default function KnowledgeManagement() {
       };
       
       const data = await getDocuments(params);
-      console.log('文档列表响应:', data); // 调试日志
       setDocuments(data?.data?.documents || []);
       setPagination(prev => ({
         ...prev,
@@ -190,8 +189,6 @@ export default function KnowledgeManagement() {
         setUploadProgress(90);
         setError(''); // 清除错误
         
-        // 输出调试信息
-        console.log('文档上传响应:', response.data);
         
         // 最终完成
         setTimeout(() => {
@@ -227,7 +224,6 @@ export default function KnowledgeManagement() {
   };
 
   function handleDeleteDocument(docId) {
-    console.log('删除按钮被点击，文档ID:', docId);
     
     // 找到文档名称
     const doc = documents.find(d => (d.docId || d.id) === docId);
@@ -243,16 +239,13 @@ export default function KnowledgeManagement() {
 
   async function confirmDeleteDocument() {
     const { docId } = deleteConfirm;
-    console.log('确认删除文档:', docId);
     
     try {
       setLoading(true);
       setDeleteConfirm({ show: false, docId: null, docName: '' });
       
       const response = await deleteDocument(docId);
-      console.log('删除响应:', response);
       await loadDocuments();
-      console.log('文档列表已刷新');
     } catch (e) {
       console.error('删除失败:', e);
       setError(e?.response?.data?.error?.message || '删除失败');
@@ -262,7 +255,6 @@ export default function KnowledgeManagement() {
   }
 
   function cancelDeleteDocument() {
-    console.log('取消删除');
     setDeleteConfirm({ show: false, docId: null, docName: '' });
   }
 

@@ -86,7 +86,29 @@ export async function submitFeedback(caseId, data) {
 
 // 交互驱动诊断流程
 export async function submitInteraction(caseId, data) {
-  const r = await api.post(`/cases/${caseId}/interactions`, data);
+  // 兼容旧字段，规范为后端期望字段
+  const payload = {
+    // 父节点ID：优先使用 camelCase，其次兼容 snake_case 等写法
+    parentNodeId:
+      data?.parentNodeId ??
+      data?.parent_node_id ??
+      data?.parent_nodeID ??
+      data?.parent_nodeId ??
+      data?.parentId ??
+      data?.parent_id,
+    // 响应内容：若已有 response 则直传，否则根据现有字段组装
+    response:
+      data?.response ?? {
+        type: data?.type,
+        content: data?.content,
+        attachments: data?.attachments || [],
+      },
+    // 可选参数：检索权重与过滤标签
+    retrievalWeight: data?.retrievalWeight ?? data?.retrieval_weight ?? 0.7,
+    filterTags: data?.filterTags ?? data?.filter_tags ?? [],
+  };
+
+  const r = await api.post(`/cases/${caseId}/interactions`, payload);
   return r.data;
 }
 

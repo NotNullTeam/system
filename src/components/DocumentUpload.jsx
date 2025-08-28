@@ -137,7 +137,6 @@ const DocumentUpload = ({ onUploadComplete, onError }) => {
 
     } catch (error) {
       if (controller.signal.aborted) {
-        console.log('上传已取消');
         return;
       }
 

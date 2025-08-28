@@ -29,7 +29,6 @@ const KnowledgeUpload = () => {
 
   // 处理上传完成
   const handleUploadComplete = (result) => {
-    console.log('上传完成:', result);
     showNotification('文档上传并解析完成！', 'success');
     loadDocuments(); // 重新加载文档列表
   };

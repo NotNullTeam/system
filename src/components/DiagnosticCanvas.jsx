@@ -1,332 +1,226 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Graph } from '@antv/g6';
+import { 
+  FullscreenOutlined, 
+  CompressOutlined,
+  ReloadOutlined,
+  DeleteOutlined 
+} from '@ant-design/icons';
 
-// 节点类型映射
-const NODE_CONFIGS = {
-  USER_QUERY: {
-    icon: '👤',
-    color: '#1890ff',
-    title: '用户问题'
-  },
-  USER_RESPONSE: {
-    icon: '👤', 
-    color: '#1890ff',
-    title: '用户补充信息'
-  },
-  AI_ANALYSIS: {
-    icon: '🤖',
-    color: '#722ed1',
-    title: 'AI分析中'
-  },
-  AI_CLARIFICATION: {
-    icon: '❓',
-    color: '#fa8c16', 
-    title: '需要更多信息'
-  },
-  SOLUTION: {
-    icon: '✅',
-    color: '#52c41a',
-    title: '解决方案'
-  }
-};
-
-export default function DiagnosticCanvas({ 
-  caseId, 
+// 原生React对话式诊断界面组件
+function DiagnosticCanvas({ 
   nodes = [], 
   edges = [], 
-  onNodeClick,
-  loading = false,
-  activeNodeId = null
+  loading = false, 
+  activeNodeId = null, 
+  onNodeClick = null 
 }) {
   const containerRef = useRef(null);
-  const graphRef = useRef(null);
-  const [hoveredNode, setHoveredNode] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hoveredMessageId, setHoveredMessageId] = useState(null);
 
+  // 将时间戳转为"x分钟前"格式
+  const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return '0m ago';
+    try {
+      const now = Date.now();
+      const time = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
+      const diff = Math.max(0, now - time);
+      const minutes = Math.floor(diff / 60000);
+      if (minutes === 0) return '0m ago';
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      return `${Math.floor(hours / 24)}d ago`;
+    } catch {
+      return '0m ago';
+    }
+  };
+
+  // 提取消息内容文本
+  const extractDisplayText = (content) => {
+    if (!content) return '';
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) return content.filter(Boolean).join('\n');
+    if (typeof content === 'object') {
+      const text = content.answer || content.clarification || content.analysis || 
+                   content.text || content.message || content.content || content.summary || '';
+      return typeof text === 'string' ? text : JSON.stringify(text);
+    }
+    return String(content);
+  };
+
+  // 自动滚动到底部
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    // 初始化G6图实例
-    if (!graphRef.current) {
-      const width = containerRef.current.scrollWidth;
-      const height = containerRef.current.scrollHeight || 600;
-
-      const graph = new Graph({
-        container: containerRef.current,
-        width,
-        height,
-        layout: {
-          type: 'dagre',
-          direction: 'TB',
-          nodesep: 50,
-          ranksep: 70,
-          controlPoints: true
-        },
-        defaultNode: {
-          type: 'rect',
-          size: [180, 60],
-          style: {
-            fill: '#fff',
-            stroke: '#e8e8e8',
-            lineWidth: 2,
-            radius: 8,
-            cursor: 'pointer'
-          },
-          labelCfg: {
-            style: {
-              fill: '#333',
-              fontSize: 14
-            }
-          }
-        },
-        defaultEdge: {
-          type: 'cubic-vertical',
-          style: {
-            stroke: '#c3c3c3',
-            lineWidth: 2,
-            endArrow: {
-              path: 'M 0,0 L 8,4 L 0,8 Z',
-              fill: '#c3c3c3'
-            }
-          }
-        },
-        modes: {
-          default: ['drag-canvas', 'zoom-canvas', 'click-select']
-        },
-        animate: true,
-        animateCfg: {
-          duration: 500,
-          easing: 'easeCubic'
-        }
-      });
-
-      // 将 graph 实例赋值给 ref
-      graphRef.current = graph;
-
-      // 节点点击事件
-      graph.on('node:click', (evt) => {
-        const node = evt.item;
-        const model = node.getModel();
-        if (onNodeClick) {
-          onNodeClick(model.id, model);
-        }
-      });
-
-      // 节点悬停事件
-      graph.on('node:mouseenter', (evt) => {
-        const node = evt.item;
-        const model = node.getModel();
-        setHoveredNode(model.id);
-        graph.setItemState(node, 'hover', true);
-      });
-
-      graph.on('node:mouseleave', (evt) => {
-        const node = evt.item;
-        setHoveredNode(null);
-        graph.setItemState(node, 'hover', false);
-      });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
+  }, [nodes, loading]);
 
-    // 处理数据更新
-    const data = {
-      nodes: nodes.map(node => {
-        const config = NODE_CONFIGS[node.type] || {};
-        const isActive = node.id === activeNodeId;
-        const isAwaiting = node.status === 'AWAITING_USER_INPUT';
-        
-        return {
-          id: node.id,
-          label: `${config.icon} ${node.title || config.title || node.type}`,
-          type: 'rect',
-          style: {
-            fill: isActive ? config.color : '#fff',
-            stroke: config.color,
-            lineWidth: isActive ? 3 : 2,
-            shadowColor: isActive ? config.color : 'transparent',
-            shadowBlur: isActive ? 10 : 0,
-            cursor: 'pointer'
-          },
-          labelCfg: {
-            style: {
-              fill: isActive ? '#fff' : '#333',
-              fontSize: 14,
-              fontWeight: isActive ? 'bold' : 'normal'
-            }
-          },
-          // 自定义数据
-          nodeType: node.type,
-          nodeStatus: node.status,
-          content: node.content,
-          description: node.description
-        };
-      }),
-      edges: edges.map(edge => ({
-        id: edge.id || `${edge.source}-${edge.target}`,
-        source: edge.source,
-        target: edge.target,
-        style: {
-          stroke: '#c3c3c3',
-          lineWidth: 2,
-          lineDash: edge.pending ? [5, 5] : undefined,
-          endArrow: {
-            path: G6.Arrow.triangle(8, 10, 15),
-            fill: '#c3c3c3'
-          }
-        }
-      }))
-    };
-
-    // 添加加载中的虚拟边
-    if (loading && nodes.length > 0) {
-      const lastNode = nodes[nodes.length - 1];
-      data.edges.push({
-        id: 'loading-edge',
-        source: lastNode.id,
-        target: 'loading-node',
-        style: {
-          stroke: '#1890ff',
-          lineWidth: 2,
-          lineDash: [5, 5],
-          endArrow: false
-        }
-      });
-      data.nodes.push({
-        id: 'loading-node',
-        label: '🔄 AI处理中...',
-        type: 'rect',
-        style: {
-          fill: '#f0f2f5',
-          stroke: '#1890ff',
-          lineWidth: 2,
-          lineDash: [5, 5]
-        }
-      });
-    }
-
-    if (graphRef.current) {
-      graphRef.current.setData(data);
-      graphRef.current.render();
-    }
-
-    // 自适应画布
-    if (nodes.length > 0 && graphRef.current) {
-      setTimeout(() => {
-        if (graphRef.current) {
-          graphRef.current.fitView(20);
-        }
-      }, 100);
-    }
-
-    return () => {
-      // 清理事件监听
-      if (graphRef.current) {
-        graphRef.current.off('node:click');
-        graphRef.current.off('node:mouseenter');
-        graphRef.current.off('node:mouseleave');
-      }
-    };
-  }, [nodes, edges, loading, activeNodeId, onNodeClick]);
-
-  // 响应容器大小变化
-  useEffect(() => {
-    const handleResize = () => {
-      if (graphRef.current && containerRef.current) {
-        const width = containerRef.current.scrollWidth;
-        const height = containerRef.current.scrollHeight || 600;
-        graphRef.current.setSize([width, height]);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // 工具栏控制
-  const handleZoomIn = () => {
-    if (graphRef.current) {
-      graphRef.current.zoom(1.2);
+  // 工具栏控制函数
+  const handleFullscreen = () => setIsFullscreen(!isFullscreen);
+  const handleRefresh = () => window.location.reload();
+  const handleClear = () => {
+    if (window.confirm('确定要清空所有对话吗？')) {
+      // 这里可以调用父组件的清空回调
     }
   };
 
-  const handleZoomOut = () => {
-    if (graphRef.current) {
-      graphRef.current.zoom(0.8);
+  // 处理消息点击事件
+  const handleMessageClick = (nodeId, nodeData) => {
+    if (onNodeClick) {
+      onNodeClick(nodeId, nodeData);
     }
   };
 
-  const handleFitView = () => {
-    if (graphRef.current) {
-      graphRef.current.fitView(20);
-    }
-  };
+  // 渲染单个消息气泡
+  const renderMessage = (node) => {
+    const isUser = node.type === 'USER_QUERY';
+    const isActive = node.id === activeNodeId;
+    const isLoading = loading && node.id === activeNodeId;
+    const messageText = extractDisplayText(node.content || node.description || node.title);
+    const timestamp = (node.metadata && node.metadata.timestamp) || 
+                     node.created_at || node.createdAt || node.timestamp;
 
-  const handleCenterView = () => {
-    if (graphRef.current) {
-      graphRef.current.fitCenter();
-    }
+    return (
+      <div
+        key={node.id}
+        className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 px-4`}
+        onMouseEnter={() => setHoveredMessageId(node.id)}
+        onMouseLeave={() => setHoveredMessageId(null)}
+      >
+        <div
+          className={`max-w-2xl cursor-pointer transition-all duration-200 ${
+            isUser 
+              ? `bg-gray-700 border-gray-600 ${isActive ? 'ring-2 ring-gray-500' : ''}`
+              : `bg-gradient-to-r from-indigo-900 to-purple-900 border-indigo-600 ${
+                  isActive ? 'ring-2 ring-indigo-400' : ''
+                }`
+          } border rounded-2xl p-4 shadow-lg hover:shadow-xl`}
+          onClick={() => handleMessageClick(node.id, node)}
+        >
+          {/* 消息内容 */}
+          {!isUser && (
+            <div className="text-sm font-semibold text-gray-300 mb-2">
+              deepseek-chat:
+            </div>
+          )}
+          
+          <div className={`${isUser ? 'text-white' : 'text-gray-100'} whitespace-pre-wrap break-words`}>
+            {messageText}
+          </div>
+
+          {/* 底部信息栏 */}
+          <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-600">
+            <div className="flex items-center space-x-2">
+              {!isUser && (
+                <div className="flex items-center space-x-1">
+                  <span className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded-full">
+                    DeepSeek V3.1
+                  </span>
+                </div>
+              )}
+              {isUser && (
+                <span className="text-xs px-2 py-1 bg-gray-600 text-gray-300 rounded-full">
+                  我
+                </span>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              {isLoading && (
+                <span className="text-blue-400 animate-pulse">Typing ...</span>
+              )}
+              <span className="text-xs text-gray-400">
+                {formatTimeAgo(timestamp)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="relative w-full h-full bg-gray-50 rounded-lg overflow-hidden">
-      {/* 画布容器 */}
-      <div 
-        ref={containerRef} 
-        className="w-full h-full"
-        style={{ minHeight: '600px' }}
-      />
-
+    <div 
+      className={`relative ${isFullscreen ? 'fixed inset-0 z-50' : 'w-full h-full'} 
+                  bg-gray-900 flex flex-col`}
+    >
       {/* 工具栏 */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2 bg-white rounded-lg shadow-md p-2">
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
         <button
-          onClick={handleZoomIn}
-          className="p-2 hover:bg-gray-100 rounded transition-colors"
-          title="放大"
+          onClick={handleFullscreen}
+          className="p-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-600 transition-colors shadow-lg"
+          title={isFullscreen ? "退出全屏" : "全屏模式"}
         >
-          🔍+
+          {isFullscreen ? <CompressOutlined /> : <FullscreenOutlined />}
         </button>
         <button
-          onClick={handleZoomOut}
-          className="p-2 hover:bg-gray-100 rounded transition-colors"
-          title="缩小"
+          onClick={handleRefresh}
+          className="p-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-600 transition-colors shadow-lg"
+          title="刷新"
         >
-          🔍-
+          <ReloadOutlined />
         </button>
         <button
-          onClick={handleFitView}
-          className="p-2 hover:bg-gray-100 rounded transition-colors"
-          title="适应视图"
+          onClick={handleClear}
+          className="p-2 bg-red-800 hover:bg-red-700 text-white rounded-lg border border-red-600 transition-colors shadow-lg"
+          title="清空对话"
         >
-          ⊡
-        </button>
-        <button
-          onClick={handleCenterView}
-          className="p-2 hover:bg-gray-100 rounded transition-colors"
-          title="居中"
-        >
-          ⊙
+          <DeleteOutlined />
         </button>
       </div>
 
-      {/* 节点图例 */}
-      <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-md p-3">
-        <div className="text-xs text-gray-600 mb-2 font-medium">节点类型</div>
-        <div className="space-y-1">
-          {Object.entries(NODE_CONFIGS).map(([type, config]) => (
-            <div key={type} className="flex items-center gap-2 text-xs">
-              <span className="w-4 h-4 rounded" style={{ backgroundColor: config.color, opacity: 0.2 }}></span>
-              <span>{config.icon}</span>
-              <span className="text-gray-600">{config.title}</span>
+      {/* 对话流容器 */}
+      <div 
+        ref={containerRef}
+        className="flex-1 overflow-y-auto py-8 space-y-1"
+        style={{ maxHeight: isFullscreen ? '100vh' : '600px' }}
+      >
+        {nodes.length === 0 && !loading && (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center text-gray-400">
+              <div className="text-6xl mb-4">💬</div>
+              <div className="text-lg">开始一个新的分析，请开始输入...</div>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+        
+        {nodes.map(renderMessage)}
+        
+        {/* 加载指示器 */}
+        {loading && (
+          <div className="flex justify-start mb-4 px-4">
+            <div className="max-w-2xl bg-gradient-to-r from-indigo-900 to-purple-900 border border-indigo-600 rounded-2xl p-4 shadow-lg">
+              <div className="text-sm font-semibold text-gray-300 mb-2">
+                deepseek-chat:
+              </div>
+              <div className="flex items-center space-x-2 text-gray-100">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+                <span className="text-sm">正在思考...</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 加载提示 */}
-      {loading && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-blue-50 text-blue-600 px-4 py-2 rounded-lg shadow-md flex items-center gap-2">
-          <LoadingOutlined spin />
-          <span>AI正在分析处理中...</span>
+      {/* 状态栏 */}
+      <div className="px-4 py-2 bg-gray-800 border-t border-gray-700">
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <div className="flex items-center space-x-4">
+            <span>消息数: {nodes.length}</span>
+            {activeNodeId && <span>活跃节点: {activeNodeId}</span>}
+          </div>
+          <div className="flex items-center space-x-2">
+            {hoveredMessageId && <span>悬停: {hoveredMessageId}</span>}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
+
+export default DiagnosticCanvas;
