@@ -16,8 +16,6 @@ export default function Cases() {
     try {
       setLoading(true);
       const data = await getCases();
-      console.log('API返回数据:', data);  // 调试日志
-      console.log('数据结构:', JSON.stringify(data, null, 2));  // 详细结构
       
       // 处理多种可能的数据格式
       let casesList = [];
@@ -41,7 +39,6 @@ export default function Cases() {
         created_at: case_.created_at || case_.createdAt
       }));
       
-      console.log('处理后的案例数据:', validCases);
       setCases(validCases);
     } catch (e) {
       setError(e?.response?.data?.error?.message || e?.message || '加载失败');
@@ -52,8 +49,6 @@ export default function Cases() {
   }
 
   function handleDeleteCase(caseId) {
-    console.log('删除按钮被点击，案例ID:', caseId);
-    
     // 找到案例名称
     const case_ = cases.find(c => (c.id || c.caseId) === caseId);
     const caseName = case_?.title || '未命名案例';
@@ -63,16 +58,13 @@ export default function Cases() {
 
   async function confirmDeleteCase() {
     const { caseId } = deleteConfirm;
-    console.log('确认删除案例:', caseId);
     
     try {
       setLoading(true);
       setDeleteConfirm({ show: false, caseId: null, caseName: '' });
       
       const response = await deleteCase(caseId);
-      console.log('删除响应:', response);
       setCases(prev => prev.filter(c => (c.id || c.caseId) !== caseId));
-      console.log('案例列表已更新');
     } catch (e) {
       console.error('删除失败:', e);
       setError(e?.response?.data?.error?.message || '删除失败');
@@ -82,7 +74,6 @@ export default function Cases() {
   }
 
   function cancelDeleteCase() {
-    console.log('取消删除');
     setDeleteConfirm({ show: false, caseId: null, caseName: '' });
   }
 

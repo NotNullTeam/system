@@ -90,7 +90,27 @@ class ProductionConfig(Config):
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
-        # 生产环境日志配置已移至 app.logging_config.setup_logging()
+    
+        # 生产环境日志配置
+        import logging
+        from logging.handlers import RotatingFileHandler
+
+        if not os.path.exists('logs'):
+            os.mkdir('logs')
+
+        file_handler = RotatingFileHandler(
+            'logs/ip_expert.log',
+            maxBytes=10240000,
+            backupCount=10
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+
+        app.logger.setLevel(logging.INFO)
+        app.logger.info('IP Expert startup')
 
 
 config = {
